@@ -34,3 +34,5 @@ data/processed/m2/*
 reports/m2/runs/
 # the validated M2 bundle is small (<1 MB) and versioned on purpose
 !models/m2/*.joblib
+
+backup/

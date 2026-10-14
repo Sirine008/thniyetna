@@ -20,7 +20,10 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
 ## Rules
 - Run `pytest -q` (repo root) after any code change; all tests must pass.
 - Never invent metrics or results. Report numbers only from files the pipeline wrote
-  (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, `docs/M2_MODEL_CARD.md`).
+  (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, the model card).
+- Model card: `train` / `ablation` regenerate it at `reports/m2/MODEL_CARD.md` (+ `models/m2/model_card.json`).
+  They do **not** touch `docs/M2_MODEL_CARD.md`; that copy is only refreshed by
+  `python -m prediction.report --md ../docs/M2_MODEL_CARD.md` (run it after a model is kept).
 - Before retraining, back up `models/m2/`, `reports/m2/` and `docs/M2_MODEL_CARD.md`
   (copy to `backup/m2-<date>/`), so the previous model can be restored.
 - Schema changes go through a new Alembic revision in `backend/alembic/versions/`, never by hand.
@@ -30,6 +33,7 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
 ## M2 open items — runbook
 
 ### 1. Weather per governorate experiment
+**Done 2026-10-14 — negative result, baseline kept** (see `docs/M2_WEATHER_EXPERIMENT.md`).
 1. `python -m prediction.fetch_weather --start 2022-04-01 --end <today> --out ../data/external/m2/weather_governorates.csv`
    Check: 24 `gov_code`, ~1,650 days each, no empty column.
 2. Back up (see Rules), then:
@@ -54,6 +58,6 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
 `python -m prediction.condition_model train --source db` — quality gate: ≥ 50 positives and
 ≥ +0.02 PR-AUC over the rule-based prior, otherwise the prior stays (expected and fine).
 
-### 4. Limits to state in the report (from docs/M2_MODEL_CARD.md)
+### 4. Limits to state in the report (from docs/M2_MODEL_CARD.md, the card of the shipped `2026.10.11-2054`)
 No accident GPS (segment risk is an exposure allocation) · within-governorate day timing ≈ chance (AUC 0.52) ·
 history carries the signal · trees do not beat logistic regression · accident export lags the scoring date.

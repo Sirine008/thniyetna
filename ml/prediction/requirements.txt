@@ -19,3 +19,6 @@ psycopg[binary]==3.2.3
 # (Without a server, tracking falls back to a local SQLite store, or to JSON
 # run records if MLflow is not installed.)
 mlflow-skinny==2.16.2
+# mlflow-skinny does not pull in alembic, but its local SQLite store
+# (sqlite:///mlruns.db, used when MLFLOW_TRACKING_URI is empty) imports it.
+alembic==1.14.0
