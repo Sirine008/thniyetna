@@ -22,7 +22,8 @@ services:
     restart: unless-stopped
 
   osrm:
-    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
+    # Pinned to the OSRM version that prepared data/osm/bizerte.osrm* (OSRM refuses files from another version).
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:v26.9.0-debian}
     container_name: thniyetna-osrm
     command: osrm-routed --algorithm mld /data/bizerte.osrm
     volumes:
