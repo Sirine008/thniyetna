@@ -16,7 +16,7 @@ router=APIRouter()
 @router.post("/complaints",response_model=ComplaintOut)
 def submit_complaint(c:ComplaintIn,db:Session=Depends(get_db),user=Depends(require_role("citizen"))):
     actor=c.citizen_id or user["sub"]
-    row=db.execute(text("""INSERT INTO complaints(actor_ref,description,geom,payload) VALUES(:a,:d,ST_SetSRID(ST_MakePoint(:lon,:lat),4326),jsonb_build_object('category',:cat,'image_url',:img,'image_storage_key',:storage_key)) RETURNING id::text,status,description,ST_Y(geom) latitude,ST_X(geom) longitude,created_at,payload->>'category' category,payload->>'image_url' image_url"""),{"a":actor,"d":c.description,"lon":c.longitude,"lat":c.latitude,"cat":c.category,"img":c.image_url,"storage_key":c.image_storage_key}).mappings().one()
+    row=db.execute(text("""INSERT INTO complaints(actor_ref,description,geom,payload) VALUES(:a,:d,ST_SetSRID(ST_MakePoint(:lon,:lat),4326),jsonb_build_object('category',CAST(:cat AS text),'image_url',CAST(:img AS text),'image_storage_key',CAST(:storage_key AS text))) RETURNING id::text,status,description,ST_Y(geom) latitude,ST_X(geom) longitude,created_at,payload->>'category' category,payload->>'image_url' image_url"""),{"a":actor,"d":c.description,"lon":c.longitude,"lat":c.latitude,"cat":c.category,"img":c.image_url,"storage_key":c.image_storage_key}).mappings().one()
     if c.category == "road_damage" and c.image_storage_key:
         db.execute(text("""INSERT INTO perception_jobs(job_type,source,storage_key,media_uri,options,created_by) VALUES('image','citizen',:storage_key,:media,CAST(:options AS jsonb),:created_by)"""),{
             "storage_key":c.image_storage_key,
@@ -39,7 +39,7 @@ def update_complaint(complaint_id:str,req:ComplaintStatusUpdate,db:Session=Depen
     if req.status not in {"open","under_review","validated","planned","resolved","rejected"}: raise HTTPException(422,"Unsupported status")
     old=db.execute(text("SELECT status,actor_ref FROM complaints WHERE id=:id"),{"id":complaint_id}).mappings().first()
     if not old: raise HTTPException(404,"Complaint not found")
-    db.execute(text("UPDATE complaints SET status=:s,payload=payload||jsonb_build_object('last_note',:n,'updated_by',:u) WHERE id=:id"),{"s":req.status,"n":req.note,"u":user["sub"],"id":complaint_id})
+    db.execute(text("UPDATE complaints SET status=:s,payload=payload||jsonb_build_object('last_note',CAST(:n AS text),'updated_by',CAST(:u AS text)) WHERE id=:id"),{"s":req.status,"n":req.note,"u":user["sub"],"id":complaint_id})
     db.execute(text("INSERT INTO complaint_status_history(complaint_id,old_status,new_status,changed_by,note) VALUES(:id,:o,:n,:u,:note)"),{"id":complaint_id,"o":old["status"],"n":req.status,"u":user["sub"],"note":req.note})
     publish(db,"complaint.status",{"complaint_id":complaint_id,"old_status":old["status"],"new_status":req.status,"note":req.note},old["actor_ref"]); db.commit(); return {"id":complaint_id,"status":req.status}
 
@@ -73,7 +73,7 @@ def ack(notification_id:str,db:Session=Depends(get_db),user=Depends(get_current_
 def create_vehicle(req:VehicleCreate,db:Session=Depends(get_db),user=Depends(require_role("transport_supervisor","equipment_supervisor"))):
     row=db.execute(text("""
         INSERT INTO vehicles(vehicle_code,vehicle_type,owner_org,label,metadata)
-        VALUES(:code,:type,:org,:label,jsonb_build_object('created_by',:user))
+        VALUES(:code,:type,:org,:label,jsonb_build_object('created_by',CAST(:user AS text)))
         ON CONFLICT(vehicle_code) DO UPDATE SET
           vehicle_type=excluded.vehicle_type,owner_org=excluded.owner_org,label=excluded.label,active=true
         RETURNING vehicle_code,vehicle_type,owner_org,label,metadata,active

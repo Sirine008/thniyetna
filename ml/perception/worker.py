@@ -167,7 +167,7 @@ def _upsert_observation(
                   ) VALUES(
                     :segment,:typ,:source,:sev,:conf,
                     ST_SetSRID(ST_MakePoint(:lon,:lat),4326),:captured,:media,
-                    jsonb_build_object('model',:model,'observation_count',1,'job_id',:job_id),
+                    jsonb_build_object('model',CAST(:model AS text),'observation_count',1,'job_id',CAST(:job_id AS text)),
                     'observed'
                   ) RETURNING id::text
                 """), {
@@ -193,9 +193,9 @@ def _upsert_observation(
             model_version,metadata
           ) VALUES(
             :event,:session,:source,:typ,:conf,:sev,
-            CASE WHEN :lat IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(:lon,:lat),4326) END,
+            CASE WHEN CAST(:lat AS double precision) IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(:lon,:lat),4326) END,
             :captured,:frame_index,:frame_time,CAST(:bbox AS jsonb),:media,:model,:version,
-            jsonb_build_object('job_id',:job_id)
+            jsonb_build_object('job_id',CAST(:job_id AS text))
           )
         """), {
             "event": event_id, "session": job.get("session_id"), "source": job["source"],

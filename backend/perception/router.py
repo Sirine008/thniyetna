@@ -43,7 +43,7 @@ def start_inspection(
     row = db.execute(text("""
       INSERT INTO inspection_sessions(vehicle_id,video_uri,video_storage_key,metadata)
       SELECT id,:video,:storage_key,
-             jsonb_build_object('mode',:mode,'started_by',:user)
+             jsonb_build_object('mode',CAST(:mode AS text),'started_by',CAST(:user AS text))
       FROM vehicles WHERE vehicle_code=:code
       RETURNING id::text,status,started_at,video_uri,video_storage_key
     """), {
@@ -69,7 +69,7 @@ def heartbeat(
     row = db.execute(text("""
       UPDATE inspection_sessions
       SET last_position=ST_SetSRID(ST_MakePoint(:lon,:lat),4326),
-          metadata=metadata||jsonb_build_object('last_heartbeat',:ts)
+          metadata=metadata||jsonb_build_object('last_heartbeat',CAST(:ts AS text))
       WHERE id=:id
       RETURNING id::text
     """), {
@@ -239,7 +239,7 @@ def submit_event(
         segment_id,event_type,source,severity,confidence,geom,observed_at,media_uri,payload,status
       )
       SELECT (SELECT id FROM nearest),:typ,:src,:sev,:conf,p.g,:ts,:media,
-             jsonb_build_object('video_ref',:video,'description',:descr,'session_id',:session),
+             jsonb_build_object('video_ref',CAST(:video AS text),'description',CAST(:descr AS text),'session_id',CAST(:session AS text)),
              'observed'
       FROM p
       RETURNING id::text,segment_id::text,event_type,severity,confidence,
@@ -297,7 +297,7 @@ def validate_event(
     row = db.execute(text("""
       UPDATE road_events
       SET status='validated',updated_at=now(),
-          payload=payload||jsonb_build_object('validated_by',:u)
+          payload=payload||jsonb_build_object('validated_by',CAST(:u AS text))
       WHERE id=:id
       RETURNING id::text,event_type
     """), {"id": event_id, "u": user["sub"]}).mappings().first()

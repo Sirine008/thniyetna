@@ -236,12 +236,12 @@ def list_routes(db:Session=Depends(get_db)):
 def create_route(req:RouteCreate,db:Session=Depends(get_db),user=Depends(require_role("transport_supervisor"))):
     if len(req.coordinates)<2: raise HTTPException(422,"At least two coordinates required")
     wkt="LINESTRING("+",".join(f"{lon} {lat}" for lat,lon in req.coordinates)+")"
-    row=db.execute(text("""INSERT INTO official_routes(route_code,name,owner_org,geom,active,metadata) VALUES(:c,:n,:o,ST_Multi(ST_GeomFromText(:w,4326)),:a,jsonb_build_object('created_by',:u)) ON CONFLICT(route_code) DO UPDATE SET name=excluded.name,geom=excluded.geom,active=excluded.active,updated_at=now() RETURNING id::text,route_code,name"""),{"c":req.route_code,"n":req.name,"o":req.owner_org,"w":wkt,"a":req.active,"u":user["sub"]}).mappings().one()
+    row=db.execute(text("""INSERT INTO official_routes(route_code,name,owner_org,geom,active,metadata) VALUES(:c,:n,:o,ST_Multi(ST_GeomFromText(:w,4326)),:a,jsonb_build_object('created_by',CAST(:u AS text))) ON CONFLICT(route_code) DO UPDATE SET name=excluded.name,geom=excluded.geom,active=excluded.active,updated_at=now() RETURNING id::text,route_code,name"""),{"c":req.route_code,"n":req.name,"o":req.owner_org,"w":wkt,"a":req.active,"u":user["sub"]}).mappings().one()
     publish(db,"route.updated",dict(row)); db.commit(); return row
 
 @router.post("/assignments")
 def assign_route(req:AssignmentCreate,db:Session=Depends(get_db),user=Depends(require_role("transport_supervisor"))):
-    row=db.execute(text("""INSERT INTO route_assignments(route_id,vehicle_id,driver_username,metadata) SELECT r.id,v.id,:d,jsonb_build_object('assigned_by',:u) FROM official_routes r,vehicles v WHERE r.route_code=:r AND v.vehicle_code=:v RETURNING id::text"""),{"d":req.driver_username,"u":user["sub"],"r":req.route_code,"v":req.vehicle_code}).mappings().first()
+    row=db.execute(text("""INSERT INTO route_assignments(route_id,vehicle_id,driver_username,metadata) SELECT r.id,v.id,:d,jsonb_build_object('assigned_by',CAST(:u AS text)) FROM official_routes r,vehicles v WHERE r.route_code=:r AND v.vehicle_code=:v RETURNING id::text"""),{"d":req.driver_username,"u":user["sub"],"r":req.route_code,"v":req.vehicle_code}).mappings().first()
     if not row: raise HTTPException(404,"Route or vehicle not found")
     publish(db,"route.assignment",{"assignment_id":row["id"],**req.model_dump()},req.driver_username); db.commit(); return {"status":"assigned",**row}
 

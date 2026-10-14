@@ -14,5 +14,5 @@ def publish(db, topic: str, payload: dict, recipient_ref: str | None = None):
         INSERT INTO notification_outbox(topic, recipient_ref, payload)
         VALUES (:topic, :recipient, CAST(:payload AS jsonb))
         RETURNING id::text, created_at
-    """), {"topic": topic, "recipient": recipient_ref, "payload": json.dumps(payload)}).mappings().one()
+    """), {"topic": topic, "recipient": recipient_ref, "payload": json.dumps(payload, default=str)}).mappings().one()
     return dict(row)
