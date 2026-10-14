@@ -1,0 +1,21 @@
+# M2 risk prediction — versions validated on 2026-10-11 (Python 3.12).
+# The shipped model bundle (models/m2/*.joblib) is a pickle: keep scikit-learn,
+# xgboost and numpy at these versions to load it, or retrain after an upgrade.
+numpy==2.4.4
+pandas==3.0.2
+pyarrow==26.0.0
+openpyxl==3.1.5
+scikit-learn==1.8.0
+xgboost==3.4.1
+joblib==1.5.3
+shap==0.53.0
+matplotlib==3.10.8
+osmium==4.3.1
+shapely==2.2.0
+jsonschema==4.26.0
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+# Client matched to the MLflow 2.16.2 server of the `ml` Compose profile.
+# (Without a server, tracking falls back to a local SQLite store, or to JSON
+# run records if MLflow is not installed.)
+mlflow-skinny==2.16.2

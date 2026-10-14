@@ -1,0 +1,144 @@
+name: thniyetna
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: thniyetna-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-thniyetna}
+      POSTGRES_USER: ${POSTGRES_USER:-thniyetna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-thniyetna_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-thniyetna} -d ${POSTGRES_DB:-thniyetna}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+  osrm:
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
+    container_name: thniyetna-osrm
+    command: osrm-routed --algorithm mld /data/bizerte.osrm
+    volumes:
+      - ./data/osm:/data:ro
+    ports:
+      - "${OSRM_PORT:-5002}:5000"
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    container_name: thniyetna-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-thniyetna}:${POSTGRES_PASSWORD:-thniyetna_dev}@db:5432/${POSTGRES_DB:-thniyetna}
+      JWT_SECRET: ${JWT_SECRET:-change-this-before-deployment}
+      BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:-Thniyetna2026!}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OSRM_URL: http://osrm:5000
+      MEDIA_ROOT: /data/media
+      MEDIA_PUBLIC_PREFIX: /media/files
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+    container_name: thniyetna-web
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+  perception-worker:
+    profiles: ["m1"]
+    build:
+      context: .
+      dockerfile: ml/perception/Dockerfile
+    container_name: thniyetna-perception-worker
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-thniyetna}:${POSTGRES_PASSWORD:-thniyetna_dev}@db:5432/${POSTGRES_DB:-thniyetna}
+      MEDIA_ROOT: /data/media
+      M1_MODEL_WEIGHTS: /models/${M1_MODEL_FILE:-road-damage-yolo26n.pt}
+      M1_MODEL_NAME: ${M1_MODEL_NAME:-yolo26n-rdd2022}
+      M1_DEVICE: ${M1_DEVICE:-cpu}
+      M1_IMGSZ: ${M1_IMGSZ:-640}
+      M1_CONF: ${M1_CONF:-0.25}
+      M1_IOU: ${M1_IOU:-0.50}
+      M1_VIDEO_FPS: ${M1_VIDEO_FPS:-5}
+      M1_BATCH_SIZE: ${M1_BATCH_SIZE:-8}
+      M1_DEDUP_RADIUS_M: ${M1_DEDUP_RADIUS_M:-20}
+      M1_DEDUP_DAYS: ${M1_DEDUP_DAYS:-14}
+    volumes:
+      - media_data:/data/media
+      - ./models:/models:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+  mlflow:
+    profiles: ["ml"]
+    build:
+      context: ./infra/mlflow
+    container_name: thniyetna-mlflow
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://${POSTGRES_USER:-thniyetna}:${POSTGRES_PASSWORD:-thniyetna_dev}@db:5432/${POSTGRES_DB:-thniyetna}
+    command:
+      - /bin/sh
+      - -c
+      - >
+        mkdir -p /mlflow/artifacts &&
+        mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri "$$MLFLOW_BACKEND_STORE_URI"
+        --artifacts-destination /mlflow/artifacts
+        --serve-artifacts
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [thniyetna-network]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: thniyetna-postgres-data
+  media_data:
+    name: thniyetna-media-data
+  mlflow_artifacts:
+    name: thniyetna-mlflow-artifacts
+
+networks:
+  thniyetna-network:
+    name: thniyetna-network
+    driver: bridge

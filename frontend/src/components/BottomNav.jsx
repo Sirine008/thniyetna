@@ -1,0 +1,2 @@
+import React from 'react';import {NavLink} from 'react-router-dom';
+export default function BottomNav({kind}){const base=kind==='driver'?'/driver':'/citizen';const items=kind==='driver'?[['','⌂','Trajet'],['/map','⌁','Carte'],['/alerts','◉','Alertes']]:[['','⌂','Accueil'],['/map','⌁','Carte'],['/report','＋','Signaler'],['/claims','◉','Suivi']];return <nav className="bottom-nav">{items.map(([p,i,l])=><NavLink key={l} end={p===''} to={base+p}><b>{i}</b><span>{l}</span></NavLink>)}</nav>}

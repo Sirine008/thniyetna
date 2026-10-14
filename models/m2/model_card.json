@@ -1,0 +1,178 @@
+{
+  "model": "m2-risk:2026.10.11-2054",
+  "granularity": "governorate x day (Mode A) -> segment by exposure thinning + M1 events (Mode B)",
+  "data": {
+    "accidents_rows": 69394,
+    "accidents_first": "2015-01-01",
+    "accidents_last": "2026-09-27",
+    "weather_first": "2022-04-01",
+    "weather_last": "2026-10-08",
+    "panel_rows": 39360,
+    "panel_start": "2022-04-02",
+    "panel_end": "2026-09-27",
+    "split": {
+      "train_end": "2023-12-31",
+      "val_end": "2024-12-31",
+      "test_end": "2026-09-27"
+    },
+    "sources": {
+      "accidents_tn.json": "dd778fbccfb4b02f",
+      "weather_reference.xlsx": "053bb61284593aad"
+    }
+  },
+  "chosen_classifier": "logreg",
+  "accident_flag_test": {
+    "n": 15240.0,
+    "base_rate": 0.4092,
+    "threshold": 0.31,
+    "roc_auc": 0.6829,
+    "pr_auc": 0.6111,
+    "f1": 0.6119,
+    "precision": 0.4746,
+    "recall": 0.8611,
+    "brier": 0.2159,
+    "log_loss": 0.6204
+  },
+  "candidates_test": {
+    "logreg": {
+      "roc_auc": 0.6829,
+      "pr_auc": 0.6111,
+      "f1": 0.6121
+    },
+    "random_forest": {
+      "roc_auc": 0.683,
+      "pr_auc": 0.6117,
+      "f1": 0.6097
+    },
+    "xgboost": {
+      "roc_auc": 0.6841,
+      "pr_auc": 0.6124,
+      "f1": 0.6125
+    }
+  },
+  "naive_rate30_test": {
+    "roc_auc": 0.6734,
+    "pr_auc": 0.5796,
+    "f1": 0.6047
+  },
+  "count_model": "xgboost_poisson",
+  "count_test": {
+    "naive_rolling_mean": {
+      "mae": 0.6047,
+      "rmse": 0.7859,
+      "r2": 0.1814
+    },
+    "poisson_glm": {
+      "mae": 0.6135,
+      "rmse": 0.7873,
+      "r2": 0.1783
+    },
+    "random_forest_reg": {
+      "mae": 0.6185,
+      "rmse": 0.7861,
+      "r2": 0.181
+    },
+    "xgboost_poisson": {
+      "mae": 0.6109,
+      "rmse": 0.7801,
+      "r2": 0.1933
+    }
+  },
+  "fatal_test": {
+    "base_rate": 0.1223,
+    "roc_auc": 0.6594,
+    "pr_auc": 0.1961
+  },
+  "road_class_weights": {
+    "motorway": 3.9865,
+    "national": 2.6103,
+    "regional": 2.3399,
+    "local": 0.3262,
+    "urban": 1.105
+  },
+  "mlflow_run_id": "82645803de2742fc9af2d23718f84d26",
+  "ablation": [
+    {
+      "variant": "all",
+      "n_features": 50,
+      "roc_auc": 0.6829,
+      "pr_auc": 0.6111,
+      "f1": 0.6121,
+      "brier": 0.2159,
+      "delta_pr_auc_vs_all": 0.0
+    },
+    {
+      "variant": "without_calendar",
+      "n_features": 39,
+      "roc_auc": 0.6827,
+      "pr_auc": 0.6108,
+      "f1": 0.6114,
+      "brier": 0.216,
+      "delta_pr_auc_vs_all": -0.0003
+    },
+    {
+      "variant": "without_weather",
+      "n_features": 32,
+      "roc_auc": 0.6846,
+      "pr_auc": 0.6122,
+      "f1": 0.615,
+      "brier": 0.2156,
+      "delta_pr_auc_vs_all": 0.0011
+    },
+    {
+      "variant": "without_history",
+      "n_features": 38,
+      "roc_auc": 0.6635,
+      "pr_auc": 0.5812,
+      "f1": 0.6119,
+      "brier": 0.2208,
+      "delta_pr_auc_vs_all": -0.0299
+    },
+    {
+      "variant": "without_road",
+      "n_features": 41,
+      "roc_auc": 0.6825,
+      "pr_auc": 0.6107,
+      "f1": 0.6127,
+      "brier": 0.2164,
+      "delta_pr_auc_vs_all": -0.0004
+    },
+    {
+      "variant": "only_calendar",
+      "n_features": 11,
+      "roc_auc": 0.5119,
+      "pr_auc": 0.4165,
+      "f1": 0.5805,
+      "brier": 0.2421,
+      "delta_pr_auc_vs_all": -0.1945
+    },
+    {
+      "variant": "only_weather",
+      "n_features": 18,
+      "roc_auc": 0.4963,
+      "pr_auc": 0.4043,
+      "f1": 0.5678,
+      "brier": 0.2425,
+      "delta_pr_auc_vs_all": -0.2068
+    },
+    {
+      "variant": "only_history",
+      "n_features": 12,
+      "roc_auc": 0.6837,
+      "pr_auc": 0.6106,
+      "f1": 0.6119,
+      "brier": 0.2161,
+      "delta_pr_auc_vs_all": -0.0004
+    },
+    {
+      "variant": "only_road",
+      "n_features": 9,
+      "roc_auc": 0.6637,
+      "pr_auc": 0.5759,
+      "f1": 0.615,
+      "brier": 0.2206,
+      "delta_pr_auc_vs_all": -0.0351
+    }
+  ],
+  "within_governorate_roc_auc_median": 0.524
+}

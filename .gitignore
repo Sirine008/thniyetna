@@ -1,0 +1,36 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+*.log
+*.mp4
+*.mov
+*.avi
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.joblib
+data/local/
+data/downloads/
+mlruns/
+.DS_Store
+
+# M3 routing: keep the compact prepared Bizerte graph in the repository.
+data/osm/*
+!data/osm/bizerte.osm.pbf
+!data/osm/bizerte.osrm*
+
+# M2 risk prediction
+data/external/m2/*
+!data/external/m2/README.md
+data/processed/m2/*
+!data/processed/m2/governorate_road_stats.csv
+!data/processed/m2/governorates.parquet
+/mlruns.db
+reports/m2/runs/
+# the validated M2 bundle is small (<1 MB) and versioned on purpose
+!models/m2/*.joblib

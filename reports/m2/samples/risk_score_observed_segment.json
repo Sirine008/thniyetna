@@ -1,0 +1,51 @@
+{
+  "model": {
+    "name": "m2-risk",
+    "version": "2026.10.11-2054",
+    "mlflow_run_id": "82645803de2742fc9af2d23718f84d26"
+  },
+  "components": {
+    "accident": 0.001087,
+    "condition": 0.737407,
+    "expected_accidents": 0.001088
+  },
+  "risk_level": "high",
+  "risk_score": 0.737692,
+  "segment_id": "1936bbb7-fcad-442d-b421-6826d41a7919",
+  "computed_at": "2026-10-11T00:00:00+00:00",
+  "governorate": "TN-23",
+  "top_factors": [
+    {
+      "value": 3,
+      "feature": "m1:road_condition",
+      "contribution": 7.8573
+    },
+    {
+      "value": 2.34,
+      "feature": "segment:road_class=regional",
+      "contribution": 0.8501
+    },
+    {
+      "value": 63.0,
+      "feature": "gov:nat_acc_sum_7",
+      "contribution": -0.2369
+    },
+    {
+      "value": 30.0,
+      "feature": "gov:hist_acc_sum_90",
+      "contribution": -0.2234
+    },
+    {
+      "value": 5.0,
+      "feature": "gov:hist_acc_sum_30",
+      "contribution": -0.1862
+    }
+  ],
+  "valid_until": "2026-10-12T00:00:00+00:00",
+  "horizon_days": 30,
+  "segment_code": "OSM-1017853604",
+  "contract_version": "1.1.0",
+  "predicted_condition": "critical",
+  "maintenance_priority": "P2",
+  "maintenance_priority_score": 0.5582
+}

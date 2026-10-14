@@ -1,0 +1,29 @@
+# Add M2 to the stack without editing the team's docker-compose.yml:
+#   docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 up -d --build
+services:
+  api:
+    environment:
+      M2_MODEL_DIR: /models/m2
+    volumes:
+      - ./models/m2:/models/m2:ro          # GET /prediction/model reads current.json + model_card.json
+
+  m2-worker:
+    profiles: ["m2"]
+    build:
+      context: .
+      dockerfile: ml/prediction/Dockerfile
+    container_name: thniyetna-m2-worker
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-thniyetna}:${POSTGRES_PASSWORD:-thniyetna_dev}@db:5432/${POSTGRES_DB:-thniyetna}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      M2_HORIZON_DAYS: ${M2_HORIZON_DAYS:-30}
+      M2_SCORE_INTERVAL_S: ${M2_SCORE_INTERVAL_S:-86400}
+    volumes:
+      - ./models/m2:/models/m2:ro
+      - ./data/processed/m2:/data/m2/processed:ro   # governorate_road_stats.csv (+ OSM parquet for ingest)
+      - ./data/external/m2:/data/m2/raw:ro          # raw exports, only needed by `ingest`
+    depends_on:
+      api:
+        condition: service_healthy            # Alembic 0003 has been applied by the API entrypoint
+    networks: [thniyetna-network]
+    restart: unless-stopped

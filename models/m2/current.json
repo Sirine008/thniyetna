@@ -1,0 +1,9 @@
+{
+  "name": "m2-risk",
+  "version": "2026.10.11-2054",
+  "file": "m2-risk-2026.10.11-2054.joblib",
+  "classifier": "logreg",
+  "count_model": "xgboost_poisson",
+  "mlflow_run_id": "82645803de2742fc9af2d23718f84d26",
+  "threshold": 0.31
+}

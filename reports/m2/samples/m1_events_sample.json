@@ -1,0 +1,2 @@
+[{"id":"evt-1","defect_type":"pothole","severity":0.82,"confidence":0.91,"latitude":37.27326448084165,"longitude":9.872996455456859,"source":"municipal_vehicle","timestamp":"2026-10-05T16:00:00Z","validated":true},
+ {"id":"evt-2","defect_type":"crack","severity":0.55,"confidence":0.78,"latitude":37.27326448084165,"longitude":9.872996455456859,"source":"citizen","timestamp":"2026-09-20T10:00:00Z","validated":false}]

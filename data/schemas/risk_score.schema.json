@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thnietna.tn/schemas/risk_score/1.1.0",
+  "title": "RiskScore",
+  "description": "Predicted risk for one road segment. Produced by M2, consumed by M3 (edge weights for routing) and M4 (map colouring, dashboard). 1.1.0 = 1.0.0 + segment_id as string (road_segments.id is a UUID) + optional fields segment_code, governorate, components, predicted_condition, maintenance_priority(_score), contract_version. Every 1.0.0 required field is unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["segment_id", "risk_score", "risk_level", "horizon_days", "computed_at", "model"],
+  "properties": {
+    "segment_id": { "type": "string", "description": "road_segments.id (UUID) or the OSM way id when scored outside the database" },
+    "segment_code": { "type": ["string", "null"] },
+    "governorate": { "type": ["string", "null"], "description": "ISO 3166-2:TN code, e.g. TN-23" },
+    "risk_score": {
+      "type": "number", "minimum": 0, "maximum": 1,
+      "description": "P(at least one adverse outcome on the segment within horizon_days) = 1-(1-components.accident)(1-components.condition). components.condition is the probability that a severity>=4 defect is observed (1.0.0 definition)."
+    },
+    "risk_level": {
+      "type": "string", "enum": ["low", "medium", "high", "critical"],
+      "description": "Bucketed score: low <0.25, medium <0.5, high <0.75, critical >=0.75 (thresholds versioned with the model)"
+    },
+    "horizon_days": { "type": "integer", "minimum": 1, "default": 30 },
+    "components": {
+      "type": "object", "additionalProperties": false,
+      "required": ["accident", "condition"],
+      "properties": {
+        "accident": { "type": "number", "minimum": 0, "maximum": 1, "description": "P(>=1 road accident on the segment within the horizon), trained model thinned by exposure" },
+        "condition": { "type": "number", "minimum": 0, "maximum": 1, "description": "P(severity>=4 defect within the horizon) from M1 RoadEvents and complaints" },
+        "expected_accidents": { "type": "number", "minimum": 0 }
+      }
+    },
+    "predicted_condition": {
+      "type": ["string", "null"],
+      "enum": ["no_observed_defect", "good", "fair", "poor", "critical", null]
+    },
+    "maintenance_priority": { "type": ["string", "null"], "enum": ["P1", "P2", "P3", "P4", null] },
+    "maintenance_priority_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "top_factors": {
+      "type": "array", "maxItems": 5,
+      "description": "Features pushing the score up/down most, for explainability in the dashboard",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["feature", "contribution"],
+        "properties": {
+          "feature": { "type": "string" },
+          "contribution": { "type": "number", "description": "signed, in log-odds units" },
+          "value": { "type": ["number", "string", "null"] }
+        }
+      }
+    },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "valid_until": { "type": ["string", "null"], "format": "date-time" },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "mlflow_run_id": { "type": ["string", "null"] }
+      }
+    },
+    "contract_version": { "type": "string" }
+  }
+}

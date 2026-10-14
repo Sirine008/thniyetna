@@ -1,0 +1,53 @@
+{
+  "segment_id": "1936bbb7-fcad-442d-b421-6826d41a7919",
+  "segment_code": "OSM-1017853604",
+  "risk_score": 0.737692,
+  "risk_category": "high",
+  "risk_level": "high",
+  "predicted_condition": "critical",
+  "maintenance_priority": "P2",
+  "horizon_days": 30,
+  "components": {
+    "accident": 0.001087,
+    "condition": 0.737407,
+    "expected_accidents": 0.001088
+  },
+  "top_factors": [
+    {
+      "feature": "m1:road_condition",
+      "contribution": 7.8573,
+      "value": 3
+    },
+    {
+      "feature": "segment:road_class=regional",
+      "contribution": 0.8501,
+      "value": 2.34
+    },
+    {
+      "feature": "gov:nat_acc_sum_7",
+      "contribution": -0.2369,
+      "value": 63.0
+    },
+    {
+      "feature": "gov:hist_acc_sum_90",
+      "contribution": -0.2234,
+      "value": 30.0
+    },
+    {
+      "feature": "gov:hist_acc_sum_30",
+      "contribution": -0.1862,
+      "value": 5.0
+    }
+  ],
+  "contributing_factors": [
+    "m1:road_condition (+7.86)",
+    "segment:road_class=regional (+0.85)",
+    "gov:nat_acc_sum_7 (-0.24)",
+    "gov:hist_acc_sum_90 (-0.22)",
+    "gov:hist_acc_sum_30 (-0.19)"
+  ],
+  "model_version": "2026.10.11-2054",
+  "source": "m2-model",
+  "computed_at": "2026-10-11T21:02:54.656041Z",
+  "valid_until": "2026-10-12T00:00:00Z"
+}

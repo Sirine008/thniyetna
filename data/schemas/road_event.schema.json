@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RoadEvent",
+  "description": "Contract produced by M1, consumed by M2/M4.",
+  "type": "object",
+  "required": ["id", "defect_type", "severity", "confidence", "latitude", "longitude", "source", "timestamp", "validated"],
+  "properties": {
+    "id": { "type": "string" },
+    "defect_type": { "type": "string", "enum": ["pothole", "crack", "obstacle"] },
+    "severity": { "type": "number", "minimum": 0, "maximum": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "latitude": { "type": "number" },
+    "longitude": { "type": "number" },
+    "source": { "type": "string", "enum": ["municipal_vehicle", "citizen"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "validated": { "type": "boolean" }
+  }
+}

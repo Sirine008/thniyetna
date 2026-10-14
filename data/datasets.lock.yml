@@ -1,0 +1,11 @@
+datasets:
+  rdd2022:
+    purpose: m1-road-damage-detection
+    local_path: data/external/rdd2022
+    prepared_path: data/processed/rdd2022-yolo
+  osm-bizerte:
+    purpose: m3-routing
+    local_path: data/osm
+  weather:
+    purpose: m2-context
+    source: runtime-api-or-database-observation
