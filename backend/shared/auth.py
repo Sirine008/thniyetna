@@ -4,8 +4,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from .config import JWT_ALGORITHM, JWT_SECRET
+from .db import get_db
 
 TOKEN_TTL_HOURS = 12
 ROLES = (
@@ -32,7 +35,7 @@ def create_access_token(*, username: str, role: str, display_name: str, organiza
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> dict:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired authentication token",
@@ -43,6 +46,14 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     except JWTError as exc:
         raise credentials_error from exc
     if not payload.get("sub") or payload.get("role") not in ROLES:
+        raise credentials_error
+    # A deactivated (or deleted) account loses access at once, not when its token expires.
+    # `sub` is the username exactly as stored, so this uses the unique index.
+    active = db.execute(
+        text("SELECT active FROM app_users WHERE username=:username"),
+        {"username": payload["sub"]},
+    ).scalar()
+    if not active:
         raise credentials_error
     return payload
 

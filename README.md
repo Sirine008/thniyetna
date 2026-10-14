@@ -83,6 +83,8 @@ Citizens create their own account from the web login/register page or through:
 POST /auth/register
 ```
 
+This public endpoint only ever creates the role `citizen` (a `role` field in the body is ignored). Staff accounts are never self-registered.
+
 Alembic creates the minimum operational identities when migration `0002_bootstrap_accounts` is first applied:
 
 | Role | Username |
@@ -101,6 +103,39 @@ POST /auth/login
 ```
 
 The frontend stores the returned JWT locally and sends it as a Bearer token to protected endpoints. There is no hidden auto-login and no hard-coded `demo123` credential.
+
+Every authenticated request also checks that the account is still active, so deactivating an account cuts its access immediately, including tokens already issued (they are valid 12 h otherwise).
+
+### Staff accounts (per ministry)
+
+Supervisors manage the staff accounts of their own ministry, from the **Comptes** tab of their workspace or through the API. The permission map is `MANAGEABLE_ROLES` in `backend/auth/router.py`:
+
+| Supervisor | Can manage | Default organization |
+|---|---|---|
+| `transport_supervisor` | `bus_driver`, `transport_supervisor` | SRTB |
+| `equipment_supervisor` | `inspection_vehicle`, `equipment_supervisor` | Ministère de l'Équipement |
+
+Any other role gets `403`.
+
+| Endpoint | Effect |
+|---|---|
+| `POST /auth/staff` | Create an account (`username`, `password` ≥ 8, `display_name`, `role`, optional `organization`). Returns `201`; `409` if the username exists; `403` if the role belongs to another ministry. Publishes `staff.account.created` (username + role) to the supervisors of that ministry. |
+| `GET /auth/staff` | List the accounts of the roles this supervisor can manage. Password hashes are never returned. |
+| `PATCH /auth/staff/{username}/active` | Body `{"active": false\|true}`. A supervisor cannot deactivate their own account (`422`). |
+| `POST /auth/staff/{username}/password` | Body `{"password": "..."}`. Allowed for drivers and inspection vehicles; a supervisor's password cannot be reset through the API (`403`), so that a supervisor cannot take over a peer's account. |
+
+An account of another ministry is answered with `404`. Usernames are stored in lowercase and passwords hashed with bcrypt (`crypt(..., gen_salt('bf'))`), as for citizens. The **Affectations** tab picks the driver from the active `bus_driver` accounts.
+
+### Creating or recovering an account by hand
+
+For the first administrator, or when a supervisor has lost their password:
+
+```powershell
+docker compose exec api python -m auth.create_user --username ahmed.supervisor --role equipment_supervisor --name "Ahmed"
+docker compose exec api python -m auth.create_user --username ahmed.supervisor --role equipment_supervisor --name "Ahmed" --reset-password
+```
+
+The password is prompted twice with `getpass`. It is never a command-line argument and is never printed. `--reset-password` sets a new password on an existing account and reactivates it; without it, an existing username is refused. Any role can be created (`--org` overrides the default organization).
 
 ## Routing and next-best route
 

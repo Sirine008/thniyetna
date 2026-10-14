@@ -5,6 +5,8 @@ const API = import.meta.env.VITE_API_BASE || '/api';
 async function parseError(response) {
   try {
     const payload = await response.json();
+    // 422 validation errors arrive as a list of {loc, msg}; show the messages, not [object Object].
+    if (Array.isArray(payload.detail)) return payload.detail.map(item => `${item.loc?.at(-1) ?? ''} : ${item.msg}`).join(' · ');
     return payload.detail || `Request failed (${response.status})`;
   } catch {
     return `Request failed (${response.status})`;
@@ -76,6 +78,11 @@ export const api = {
   // M2 risk prediction
   governorateForecasts: () => request('/prediction/governorates'),
   riskModel: () => request('/prediction/model'),
+  // Staff accounts of the supervisor's ministry
+  staffList: () => request('/auth/staff', { auth: true }),
+  createStaff: body => request('/auth/staff', { auth: true, method: 'POST', body }),
+  setStaffActive: (username, active) => request(`/auth/staff/${encodeURIComponent(username)}/active`, { auth: true, method: 'PATCH', body: { active } }),
+  resetStaffPassword: (username, password) => request(`/auth/staff/${encodeURIComponent(username)}/password`, { auth: true, method: 'POST', body: { password } }),
 };
 
 export function openRealtime(onEvent, onStatus) {
