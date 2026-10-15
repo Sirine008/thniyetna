@@ -54,6 +54,12 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       RAG_LLM_MODEL: ${RAG_LLM_MODEL:-llama3.2:3b}
       RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-nomic-embed-text}
+      RAG_BILINGUAL: ${RAG_BILINGUAL:-false}
+      RAG_PROMPT_VERSION: ${RAG_PROMPT_VERSION:-v2}
+      RAG_NUMBERS_RULE: ${RAG_NUMBERS_RULE:-true}
+      RAG_FTS_CONFIG: ${RAG_FTS_CONFIG:-simple}
+      RAG_CHUNK_CONTEXT: ${RAG_CHUNK_CONTEXT:-false}
+      RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -61,7 +67,6 @@ services:
     volumes:
       - media_data:/data/media
       - ./data/rag:/data/rag:ro            # RAG corpus (python -m rag.ingest)
-      - ./docs:/data/docs:ro               # project docs, also indexed
     depends_on:
       db:
         condition: service_healthy

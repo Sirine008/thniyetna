@@ -1,0 +1,960 @@
+{
+  "variant": "baseline",
+  "date": "2026-10-15 15:11",
+  "settings": {
+    "bilingual": false,
+    "prompt": "v1",
+    "model": "llama3.2:3b",
+    "ids": null
+  },
+  "chat_options": {
+    "temperature": 0.2,
+    "num_ctx": 4096,
+    "num_predict": 400,
+    "seed": 42
+  },
+  "embed_model": "nomic-embed-text",
+  "top_k": 4,
+  "summary": {
+    "n_answerable": 16,
+    "n_unanswerable": 4,
+    "hit_at_1": {
+      "value": 0.375,
+      "num": 6,
+      "den": 16
+    },
+    "hit_at_4": {
+      "value": 0.6875,
+      "num": 11,
+      "den": 16
+    },
+    "mrr_at_4": 0.4896,
+    "refusal_on_answerable": {
+      "value": 0.4375,
+      "num": 7,
+      "den": 16
+    },
+    "correct_refusal_on_unanswerable": {
+      "value": 1.0,
+      "num": 4,
+      "den": 4
+    },
+    "citation_present": {
+      "value": 1.0,
+      "num": 9,
+      "den": 9
+    },
+    "expected_source_cited": {
+      "value": 0.7778,
+      "num": 7,
+      "den": 9
+    },
+    "median_latency_s": 37.2,
+    "errors": 0
+  },
+  "records": [
+    {
+      "id": "q01",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Qu'est-ce qu'un nid-de-poule et quelles sont les causes de sa formation ?",
+      "latency_ms": 70225,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "c4e7ca53-344e-4cb5-bf73-172633743377",
+          "score": 0.03105
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 7,
+          "chunk_id": "1d7b163f-1673-4304-a826-3c0d91216a44",
+          "score": 0.03101
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "219f424a-5380-4c9b-a7e0-434b99781f2e",
+          "score": 0.03058
+        },
+        {
+          "n": 4,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 1,
+          "chunk_id": "07c12a85-7048-4bd2-9e0f-f22743b7029b",
+          "score": 0.03028
+        }
+      ],
+      "hit_rank": 4,
+      "answer": "Selon les sources fournies, un nid-de-poule est une cavité de forme généralement arrondie dont la profondeur peut atteindre la fondation et qui constitue la dernière étape de la détérioration des revêtements de chaussée.\n\nLes causes de sa formation sont multiples, notamment :\n\n* La ségrégation dans l’enrobé\n* L’humidité\n* La faiblesse loca-lisée dans la fondation\n* L’épaisseur insuffisante du revêtement\n\nCes problèmes favorisent l’apparition de fissures, qui facilitent l’infiltration d’eau entre les couches d’enrobé et dans la fondation, selon [4] Info DLC - Vol. 19, no1, août 2014 (p. 1).\n\nEn outre, les sources indiquent que la formation de nids-de-poule est souvent le résultat de défauts à la surface de la chaussée aggravés par l’effet du trafic et des cycles de gel-dégel, qui provoquent le décollement et l’arrachement du revêtement, selon [1] GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule (p. 6) et [3] GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule (p. 6).",
+      "refused": false,
+      "cited": [
+        4,
+        1,
+        3
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "correct"
+    },
+    {
+      "id": "q02",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Quand pratique-t-on une réparation temporaire d'un nid-de-poule, et avec quel enrobé ?",
+      "latency_ms": 43373,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 12,
+          "chunk_id": "c13a381f-a158-44f3-b9be-199b4a02c473",
+          "score": 0.03178
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 27,
+          "chunk_id": "af293eb5-3070-49db-91e3-acf9b435e0c5",
+          "score": 0.03128
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "219f424a-5380-4c9b-a7e0-434b99781f2e",
+          "score": 0.03125
+        },
+        {
+          "n": 4,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "c37ae11f-4703-4ce0-80ba-9b67af16de84",
+          "score": 0.03089
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Selon la source [3], une réparation temporaire d'un nid-de-poule est pratiquée avec un enrobé chaud.",
+      "refused": false,
+      "cited": [
+        3
+      ],
+      "cited_expected": false,
+      "error": null,
+      "label": "wrong",
+      "label_note": "says hot mix; the source says cold mix (winter/spring, emergency)"
+    },
+    {
+      "id": "q03",
+      "lang": "fr",
+      "answerable": true,
+      "question": "De combien la dernière couche d'enrobé à chaud doit-elle dépasser le revêtement ?",
+      "latency_ms": 38369,
+      "sources": [
+        {
+          "n": 1,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "a203cf61-f863-4d07-b9e3-3ad7698a0cf0",
+          "score": 0.03227
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 10,
+          "chunk_id": "407cc47c-86a5-4d3e-9a26-64e0052c5fc9",
+          "score": 0.03202
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 26,
+          "chunk_id": "1581ae83-147a-45eb-91c3-364ecc8e9c4e",
+          "score": 0.0315
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 11,
+          "chunk_id": "74956cd9-a5ec-4074-8f97-af870d6fc6f6",
+          "score": 0.02924
+        }
+      ],
+      "hit_rank": 2,
+      "answer": "La dernière couche d'enrobé à chaud doit dépasser le revêtement d'environ 25 mm, avant compactage, pour que sa surface soit au même niveau ou légèrement plus élevée au centre de la réparation, avec une limite maximale de 5 mm [1], [2] et [4].",
+      "refused": false,
+      "cited": [
+        1,
+        2,
+        4
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "correct"
+    },
+    {
+      "id": "q04",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Quel niveau de qualité vise-t-on pour une réparation à l'enrobé chaud ?",
+      "latency_ms": 42902,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 27,
+          "chunk_id": "af293eb5-3070-49db-91e3-acf9b435e0c5",
+          "score": 0.032
+        },
+        {
+          "n": 2,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "8ea4b84b-8648-4975-a082-9d5a8d898877",
+          "score": 0.03178
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 26,
+          "chunk_id": "1581ae83-147a-45eb-91c3-364ecc8e9c4e",
+          "score": 0.03175
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 23,
+          "chunk_id": "19391d9d-7ab0-4e5b-8672-fd17a0a5b0c0",
+          "score": 0.03037
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Selon la source [1], le niveau de qualité vise pour une réparation à l'enrobé chaud est la continuité du profil (±5 mm avec le revêtement adjacent), et l'enrobé doit être entièrement recouvert par le matériau.",
+      "refused": false,
+      "cited": [
+        1
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "partial",
+      "label_note": "only profile continuity; omits full coverage, compaction, cleanliness"
+    },
+    {
+      "id": "q05",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Quelle profondeur minimale doit avoir le trou pour une réparation à l'enrobé tiède ?",
+      "latency_ms": 36015,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 22,
+          "chunk_id": "985851ee-a1a3-4363-9403-3c76a150fcfa",
+          "score": 0.03252
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 24,
+          "chunk_id": "6b8b54e2-c5c4-43cb-8450-6d27c99e31a0",
+          "score": 0.0315
+        },
+        {
+          "n": 3,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "c37ae11f-4703-4ce0-80ba-9b67af16de84",
+          "score": 0.03132
+        },
+        {
+          "n": 4,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "8ea4b84b-8648-4975-a082-9d5a8d898877",
+          "score": 0.03078
+        }
+      ],
+      "hit_rank": 2,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q06",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Quelle est l'espérance de vie d'une réparation faite avec un véhicule spécialisé de type Patchryte ?",
+      "latency_ms": 31777,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 30,
+          "chunk_id": "e5f98743-24a5-439f-bc70-f03f480aeada",
+          "score": 0.03009
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 28,
+          "chunk_id": "3823a4ba-77c8-4c71-876a-90539479ea60",
+          "score": 0.02786
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 20,
+          "chunk_id": "488c8e7e-02a4-48d4-a16d-04fc9ea43b69",
+          "score": 0.02615
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 13,
+          "chunk_id": "0135d287-c2d0-4d29-9819-205f08048394",
+          "score": 0.02532
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q07",
+      "lang": "fr",
+      "answerable": true,
+      "question": "À quel moment faut-il faire l'inspection annuelle du réseau, et pourquoi ?",
+      "latency_ms": 69101,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 13,
+          "chunk_id": "af983d46-a9c7-46cc-a0c1-7a86cf185835",
+          "score": 0.03279
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 13,
+          "chunk_id": "ab8e321c-21c9-4176-9653-649810dc8b11",
+          "score": 0.03126
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 14,
+          "chunk_id": "5fe21118-3fea-40ba-89cf-1c29ee3a0a0c",
+          "score": 0.03054
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 43,
+          "chunk_id": "6569ad3f-e954-41f3-855a-931cb9e0c358",
+          "score": 0.03002
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Selon la source [1] GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule (p. 13), il faut faire l'inspection annuelle du réseau dès la fin du printemps (avril-mai), au moment où le sol est complètement dégelé et que les fondations de la chaussée se sont drainées. Cet moment est choisi pour constater les dommages causés à la chaussée par l'hiver et programmer les travaux d'entretien palliatif d'été sur les tronçons à plus haut risque pour la génération de futurs nids-de-poule.\n\nC'est également confirmé par la source [2] GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule (p. 13), qui précise que l'inspection annuelle doit avoir lieu au moment où le sol est complètement dégelé et que les fondations de la chaussée se sont drainées, pour constater les dommages causés à la chaussée par l'hiver et évaluer la performance des traitements.",
+      "refused": false,
+      "cited": [
+        1,
+        2
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "correct"
+    },
+    {
+      "id": "q08",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Peut-on modifier temporairement les régimes de priorité sur un itinéraire de déviation ?",
+      "latency_ms": 32746,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 14,
+          "chunk_id": "360d0dd0-e9e2-4719-9579-e55be02606c7",
+          "score": 0.03252
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 13,
+          "chunk_id": "5e526601-afb3-4028-b4b3-ee9655714088",
+          "score": 0.03068
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 14,
+          "chunk_id": "6072e0ca-99ef-4add-9aaf-c2c91c23bd06",
+          "score": 0.02991
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 35,
+          "chunk_id": "5101ee64-b8a6-49f0-ae4e-f79a0ac69d6d",
+          "score": 0.02988
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Non, il est strictement interdit de modifier temporairement les régimes de priorités sur un itinéraire de déviation [1].",
+      "refused": false,
+      "cited": [
+        1
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "correct"
+    },
+    {
+      "id": "q09",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Qu'est-ce qu'une déviation catégorielle ?",
+      "latency_ms": 33097,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 35,
+          "chunk_id": "5101ee64-b8a6-49f0-ae4e-f79a0ac69d6d",
+          "score": 0.0315
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 38,
+          "chunk_id": "9643c108-f267-4919-91e6-7eb7ed455459",
+          "score": 0.0311
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 13,
+          "chunk_id": "5e526601-afb3-4028-b4b3-ee9655714088",
+          "score": 0.02964
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 9,
+          "chunk_id": "e9031053-71b5-4d76-846c-de348219e488",
+          "score": 0.02944
+        }
+      ],
+      "hit_rank": 4,
+      "answer": "Je ne trouve pas cette information dans les documents.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q10",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Pourquoi la signalisation d'une coupure de route doit-elle rester sobre ?",
+      "latency_ms": 32095,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 26,
+          "chunk_id": "514a57c0-5c86-4ab7-827d-8343ce724d78",
+          "score": 0.03252
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 28,
+          "chunk_id": "75f8f727-4638-4fcc-ac77-6f1a296885e2",
+          "score": 0.032
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 26,
+          "chunk_id": "fbab8be6-875e-4bb0-8d00-85c20a31c3a3",
+          "score": 0.0315
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 8,
+          "chunk_id": "c84b5236-96e8-4f44-9094-12f56d8aa3fb",
+          "score": 0.03009
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q11",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Combien de temps dure une réparation de nid-de-poule faite à l'enrobé chaud ?",
+      "latency_ms": 42921,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 26,
+          "chunk_id": "1581ae83-147a-45eb-91c3-364ecc8e9c4e",
+          "score": 0.032
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 12,
+          "chunk_id": "c13a381f-a158-44f3-b9be-199b4a02c473",
+          "score": 0.03154
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 27,
+          "chunk_id": "af293eb5-3070-49db-91e3-acf9b435e0c5",
+          "score": 0.03058
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "219f424a-5380-4c9b-a7e0-434b99781f2e",
+          "score": 0.03031
+        }
+      ],
+      "hit_rank": 3,
+      "answer": "Selon la source [3], la durabilité de la réparation d'un nid-de-poule faite à l'enrobé chaud peut aller jusqu'à 5 ans, à condition que les conditions climatiques soient respectées, que les limites d'utilisation des matériaux soient respectées et que la sévérité du trafic soit minimisée.",
+      "refused": false,
+      "cited": [
+        3
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "correct"
+    },
+    {
+      "id": "q12",
+      "lang": "fr",
+      "answerable": true,
+      "question": "Quelle température minimale faut-il pour poser un enrobé chaud ?",
+      "latency_ms": 36907,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 23,
+          "chunk_id": "c5dc64ab-f7b8-4ca9-a3f3-5040f4f1aa52",
+          "score": 0.0315
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 36,
+          "chunk_id": "0d0ba70f-3cfe-461b-b2ba-e688388c4be5",
+          "score": 0.03089
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 8,
+          "chunk_id": "3cb354c9-ffeb-4b6c-bc13-ca3196dd0cff",
+          "score": 0.03016
+        },
+        {
+          "n": 4,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 1,
+          "chunk_id": "b9e7951e-80be-4982-a147-e3e4b16b5952",
+          "score": 0.02964
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q13",
+      "lang": "en",
+      "answerable": true,
+      "question": "What crack width defines low-severity longitudinal cracking on asphalt pavement?",
+      "latency_ms": 29665,
+      "sources": [
+        {
+          "n": 1,
+          "title": "13092",
+          "page": 22,
+          "chunk_id": "57d5e1fa-b0b1-4d39-85cd-9deb1fd8185a",
+          "score": 0.0311
+        },
+        {
+          "n": 2,
+          "title": "13092",
+          "page": 26,
+          "chunk_id": "d0b3ce70-afb0-428e-a448-4f4f68dbb486",
+          "score": 0.02996
+        },
+        {
+          "n": 3,
+          "title": "13092",
+          "page": 77,
+          "chunk_id": "7f20fa62-52e4-4b72-86fd-b5b1af706b0d",
+          "score": 0.02983
+        },
+        {
+          "n": 4,
+          "title": "13092",
+          "page": 17,
+          "chunk_id": "a35e0cb4-ad58-4d62-900f-7823a322efe5",
+          "score": 0.02946
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Selon la source [3] (p. 77), la largeur de la fissure qui définit la faible gravité de la fissure longitudinale sur pavé asphaltique est de moins de 3 mm.",
+      "refused": false,
+      "cited": [
+        3
+      ],
+      "cited_expected": false,
+      "error": null,
+      "label": "wrong",
+      "label_note": "says < 3 mm (another distress, p.77); the source says mean width <= 6 mm"
+    },
+    {
+      "id": "q14",
+      "lang": "en",
+      "answerable": true,
+      "question": "What is raveling and how is it measured?",
+      "latency_ms": 71952,
+      "sources": [
+        {
+          "n": 1,
+          "title": "13092",
+          "page": 42,
+          "chunk_id": "bdab0273-ab62-4a6d-8337-54aef8d16690",
+          "score": 0.03279
+        },
+        {
+          "n": 2,
+          "title": "13092",
+          "page": 36,
+          "chunk_id": "e20bd362-138d-47b9-8c50-8694ea86ba62",
+          "score": 0.02951
+        },
+        {
+          "n": 3,
+          "title": "13092",
+          "page": 15,
+          "chunk_id": "8dc78357-c5d7-4854-bfcb-0c8ba50b02e9",
+          "score": 0.02904
+        },
+        {
+          "n": 4,
+          "title": "13092",
+          "page": 36,
+          "chunk_id": "e4d19597-4024-4d11-ab63-d3e34ef9a300",
+          "score": 0.02837
+        }
+      ],
+      "hit_rank": 1,
+      "answer": "Raveling est une forme de dégradation de la surface d'asphalte, caractérisée par la perte d'aggregats et de liant asphaltique, ce qui entraîne une surface rugueuse et pittueuse avec une importante perte d'aggregats.\n\nSelon la source [1], raveling peut aller de la perte de fines à la perte de certains agregats coars, jusqu'à une surface très rugueuse et pittueuse avec une importante perte d'agregats. La présence de raveling indique des problèmes de performance liés à la mixture.\n\nLa mesure de raveling est décrite dans la source [1] comme suit :\n\n* Il est recommandé de mesurer la surface affectée en mètres carrés.\n* Raveling ne doit pas être mesuré sur les chip seals.\n* Les mesures doivent être prises à 15,25 m d'intervalle pour chaque voie.\n\nCependant, il est important de noter que la source [2] recommande de mesurer la profondeur du rut, qui est la profondeur de la dépression longitudinale de la surface, à 15,25 m d'intervalle pour chaque voie, en mesurant la profondeur à l'aide d'un 1,2 m de straight edge, et non la mesure de raveling.",
+      "refused": false,
+      "cited": [
+        1,
+        2
+      ],
+      "cited_expected": true,
+      "error": null,
+      "label": "partial",
+      "label_note": "definition and m2 correct; adds a 15.25 m interval rule that belongs to rutting"
+    },
+    {
+      "id": "q15",
+      "lang": "en",
+      "answerable": true,
+      "question": "What equipment is needed to repair a pothole with warm mix asphalt?",
+      "latency_ms": 39396,
+      "sources": [
+        {
+          "n": 1,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 17,
+          "chunk_id": "dc035e93-29de-4780-b1a5-0e6bce75a398",
+          "score": 0.03252
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 16,
+          "chunk_id": "3648ce25-c596-4e2a-be72-470d4e5525f5",
+          "score": 0.03175
+        },
+        {
+          "n": 3,
+          "title": "13092",
+          "page": 32,
+          "chunk_id": "4f4ed853-454e-46fa-8844-c19a46732176",
+          "score": 0.03126
+        },
+        {
+          "n": 4,
+          "title": "13092",
+          "page": 32,
+          "chunk_id": "c3acc207-0bdb-41bd-965a-d4abec132c1a",
+          "score": 0.0308
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis. Les sources fournies ne mentionnent pas spécifiquement les équipements nécessaires pour réparer un nid de poule avec un asphalte chauffé. Cependant, les sources mentionnent les équipements généralement utilisés pour réparer des potholes, tels que des compacteurs, des outils de dégagement et des matériaux d'asphalte.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q16",
+      "lang": "en",
+      "answerable": true,
+      "question": "In the detour guide's example, how much time per day do users lose with an alternating traffic-light setup?",
+      "latency_ms": 27584,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 8,
+          "chunk_id": "c84b5236-96e8-4f44-9094-12f56d8aa3fb",
+          "score": 0.03226
+        },
+        {
+          "n": 2,
+          "title": "13092",
+          "page": 14,
+          "chunk_id": "eb81fa33-ff7d-47f4-a266-78fe8025c650",
+          "score": 0.02736
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 64,
+          "chunk_id": "506950aa-22e8-48bf-9ce8-60d54c7d722d",
+          "score": 0.01639
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "eff7ddd8-6cd5-42c5-b5c5-489ae1e63b44",
+          "score": 0.01639
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q17",
+      "lang": "fr",
+      "answerable": false,
+      "question": "Combien d'habitants compte le gouvernorat de Bizerte ?",
+      "latency_ms": 43374,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 10,
+          "chunk_id": "56c8a9be-bbc4-431f-894d-2765771533b3",
+          "score": 0.03226
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 14,
+          "chunk_id": "cda7e18a-b7ad-4a19-a835-0bd99157d4b4",
+          "score": 0.02872
+        },
+        {
+          "n": 3,
+          "title": "Info DLC - Vol. 19, no1, août 2014",
+          "page": 2,
+          "chunk_id": "c37ae11f-4703-4ce0-80ba-9b67af16de84",
+          "score": 0.01639
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 10,
+          "chunk_id": "5c22e768-bdf6-4b75-a304-3ad4acfec982",
+          "score": 0.01639
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis. Les sources [1], [2], [3] et [4] traitent des sujets tels que la définition d'un coût global, la concertation pour la mise en place de déviations, les méthodes de calcul des temps perdus, etc., mais pas la population du gouvernorat de Bizerte.",
+      "refused": true,
+      "cited": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q18",
+      "lang": "fr",
+      "answerable": false,
+      "question": "Quel est le salaire d'un ouvrier d'entretien routier en Tunisie ?",
+      "latency_ms": 37525,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 23,
+          "chunk_id": "c6ad1648-7e70-47bf-af22-148db5f56549",
+          "score": 0.01639
+        },
+        {
+          "n": 2,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 6,
+          "chunk_id": "0bbec9e4-d68b-4140-b90e-34a6c73599af",
+          "score": 0.01639
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 41,
+          "chunk_id": "b860606a-d993-431d-b14c-3f4f7309b261",
+          "score": 0.01613
+        },
+        {
+          "n": 4,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 16,
+          "chunk_id": "3002c11e-10ce-4409-b7c7-713ca6668523",
+          "score": 0.01613
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis. Les sources mentionnées sont liées à la réparation des nids-de-poule et à la signalisation routière, mais elles ne fournissent pas d'informations sur les salaires des ouvriers d'entretien routiers en Tunisie.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q19",
+      "lang": "fr",
+      "answerable": false,
+      "question": "Quand le tramway de Bizerte sera-t-il mis en service ?",
+      "latency_ms": 33766,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 3,
+          "chunk_id": "25f0c6d1-046f-4a19-b87b-669be1252228",
+          "score": 0.03058
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 22,
+          "chunk_id": "af45a2cb-f481-4c62-ba15-4ff948d5b39d",
+          "score": 0.02727
+        },
+        {
+          "n": 3,
+          "title": "DT2447",
+          "page": 26,
+          "chunk_id": "514a57c0-5c86-4ab7-827d-8343ce724d78",
+          "score": 0.02598
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 14,
+          "chunk_id": "cda7e18a-b7ad-4a19-a835-0bd99157d4b4",
+          "score": 0.02583
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    },
+    {
+      "id": "q20",
+      "lang": "en",
+      "answerable": false,
+      "question": "Who is the governor of Bizerte?",
+      "latency_ms": 24731,
+      "sources": [
+        {
+          "n": 1,
+          "title": "DT2447",
+          "page": 34,
+          "chunk_id": "3ec64474-6886-47e5-8c4b-2e090d2e12b2",
+          "score": 0.01639
+        },
+        {
+          "n": 2,
+          "title": "DT2447",
+          "page": 64,
+          "chunk_id": "d66f1f54-29f1-4cb7-8cda-b703b3931209",
+          "score": 0.01639
+        },
+        {
+          "n": 3,
+          "title": "GUIDE-de-bonnes-pratiques-de-reparation-de-nids-de-poule",
+          "page": 4,
+          "chunk_id": "30ba8ed4-b724-445d-b218-c5e66b17a6af",
+          "score": 0.01613
+        },
+        {
+          "n": 4,
+          "title": "DT2447",
+          "page": 64,
+          "chunk_id": "506950aa-22e8-48bf-9ce8-60d54c7d722d",
+          "score": 0.01613
+        }
+      ],
+      "hit_rank": null,
+      "answer": "Je ne trouve pas cette information dans les documents fournis.",
+      "refused": true,
+      "cited": [],
+      "cited_expected": false,
+      "error": null
+    }
+  ],
+  "labels_by": "Claude (manual reading against the source chunks), to be checked by Sirine"
+}

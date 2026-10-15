@@ -69,6 +69,9 @@ No accident GPS (segment risk is an exposure allocation) · within-governorate d
 history carries the signal · trees do not beat logistic regression · accident export lags the scoring date.
 
 ## RAG assistant (part A)
+- **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
+  reads only `data/rag/corpus/**` (field guides; a future user guide also goes there). The `docs/**/*.md` rows
+  were deleted on 2026-10-15 (4 guides / 582 chunks remain).
 - Ollama on the **Windows host**: LLM `llama3.2:3b`, embeddings `nomic-embed-text` (768 dims). The api reads
   `OLLAMA_URL` / `RAG_LLM_MODEL` / `RAG_EMBED_MODEL` (defaults in `backend/rag/config.py`, documented in `.env.example`).
   If the api cannot reach Ollama, the user sets `OLLAMA_HOST=0.0.0.0` on Windows; do not work around it.
@@ -84,5 +87,27 @@ history carries the signal · trees do not beat logistic regression · accident 
 - First check (2026-10-15, 14 docs / 625 chunks): plumbing works, but both test questions were refused.
   "Limites du modèle M2 ?" → retrieval miss (French question vs English model card; the limits chunk is not in
   the top 4). "Nid-de-poule par temps froid ?" → the cold-mix pages are retrieved, but llama3.2:3b still answers
-  the refusal sentence. Answer quality is the open item for part B. PowerShell 5.1 shows the API's UTF-8 as
-  mojibake (no charset in `application/json`); the stored text is correct.
+  the refusal sentence. (Superseded by the A.5/A.6 evaluation below; developer docs are no longer indexed.)
+- Evaluation (A.5): `data/rag/eval/questions.jsonl` (16 answerable field questions + 4 unanswerable; DRAFT, to be
+  validated by Sirine) and `python -m rag.evaluate --variant <name>` (backend/rag/evaluate.py), run on the host from
+  `backend/` with `DATABASE_URL` (host DB) and `OLLAMA_URL=http://localhost:11434`; ~10–15 min per variant, run
+  variants one after another. Results: `data/rag/eval/results_<variant>.json`; table rebuilt in
+  `docs/RAG_EVALUATION.md` (`--report-only` after editing labels). Answer correctness = manual `label`
+  (correct / partial / wrong) on each non-refused answer — never invent labels; read the answer against the source.
+- Run so far (2026-10-15): baseline, bilingual, prompt_v2, combined (all labelled). Users ask in French only, so
+  bilingual retrieval is dropped (`RAG_BILINGUAL=false`; the llama3.2:3b translations were poor).
+  **Pending re-run:** combined_gemma4 (5 questions, only if RAM allows), fts_french, chunk_context,
+  confidence_gate, numbers_rule.
+- A.6 flags (`backend/rag/config.py`, `.env.example`, passed by docker-compose): defaults
+  `RAG_PROMPT_VERSION=v2`, `RAG_NUMBERS_RULE=true`, `RAG_BILINGUAL=false`, `RAG_MIN_SIMILARITY=0` (gate off),
+  `RAG_FTS_CONFIG=simple`, `RAG_CHUNK_CONTEXT=false`. Alembic 0005 adds `tsv_fr` ('french' stemming),
+  0006 adds `context`, `embedding_ctx`, `tsv_fr_ctx`; after a fresh DB or new documents run
+  `docker compose ... exec api python -m rag.ingest --contexts` once (ingest also backfills missing contexts).
+- Known issue before re-running chunk_context: the heading heuristic (`rag/context.py`) drops numbered fiche
+  section titles (e.g. "4. ÉQUIPEMENTS" repeats on every CERIU fiche, so it is treated as a footer) and takes
+  uppercase sign texts ("ROUTE BARREE") as headings; the page header (hot vs warm mix fiche) is correct.
+- Gate threshold (confidence_gate): `python -m rag.evaluate --gate-from chunk_context` applies a fixed rule
+  (midpoint between the lowest best-similarity of a retrieved answerable question and the highest of an
+  unanswerable one) and reports leave-one-out next to the in-sample result. It is tuned on the evaluation set;
+  say so, and set the value in `VARIANTS` for confidence_gate / numbers_rule before running them.
+- `/assistant` responses declare `application/json; charset=utf-8` (PowerShell 5.1 mojibake fixed).

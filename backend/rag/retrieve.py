@@ -50,25 +50,74 @@ def snippet(text: str, n: int = 300) -> str:
     return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + " …"
 
 
-def retrieve(db, question: str, k: int = config.TOP_K, depth: int = config.CANDIDATES) -> list[dict]:
+def search_queries(question: str, bilingual: bool, model: str | None = None) -> list[str]:
+    """The question, plus its translation when bilingual retrieval is on (falls back to the question alone)."""
+    if not bilingual:
+        return [question]
+    from . import ollama
+    from .translate import translate
+    try:
+        other = translate(question, model)
+    except ollama.OllamaError:  # a bad translation call must not cost the answer
+        other = ""
+    return [question] + ([other] if other and other.lower() != question.lower() else [])
+
+
+def passes_gate(best_similarity: float | None, min_similarity: float = config.RAG_MIN_SIMILARITY) -> bool:
+    """Confidence gate (RAG_MIN_SIMILARITY > 0): answer only if the best vector match is close enough."""
+    return min_similarity <= 0 or (best_similarity is not None and best_similarity >= min_similarity)
+
+
+def columns(fts: str, context: bool) -> tuple[str, str, str]:
+    """(embedding column, tsvector column, text search config) — whitelisted, never user input."""
+    if context:
+        return "embedding_ctx", "tsv_fr_ctx", "french"
+    if fts == "french":
+        return "embedding", "tsv_fr", "french"
+    return "embedding", "tsv", "simple"
+
+
+def retrieve(db, question: str, k: int = config.TOP_K, depth: int = config.CANDIDATES,
+             bilingual: bool | None = None, model: str | None = None, fts: str | None = None,
+             context: bool | None = None) -> list[dict]:
+    """Top-k chunks; see retrieve_scored."""
+    return retrieve_scored(db, question, k, depth, bilingual, model, fts, context)[0]
+
+
+def retrieve_scored(db, question: str, k: int = config.TOP_K, depth: int = config.CANDIDATES,
+                    bilingual: bool | None = None, model: str | None = None, fts: str | None = None,
+                    context: bool | None = None) -> tuple[list[dict], float | None]:
+    """-> (top-k chunks, best vector cosine similarity among the candidates).
+
+    bilingual (RAG_BILINGUAL) also searches the translated question; fts (RAG_FTS_CONFIG) picks the
+    'simple' or 'french' full-text column; context (RAG_CHUNK_CONTEXT) searches the columns built
+    from title + heading + text. All vector and full-text lists are fused with RRF.
+    """
     from sqlalchemy import text
 
     from . import ollama
 
-    qvec = vector_literal(ollama.embed([question], kind="query")[0])
-    vec_ids = db.execute(text("""
-        SELECT id::text FROM rag_chunks ORDER BY embedding <=> CAST(:q AS vector) LIMIT :n"""),
-        {"q": qvec, "n": depth}).scalars().all()
-    terms = query_terms(question)
-    fts_ids = []
-    if terms:
-        fts_ids = db.execute(text("""
-            SELECT id::text FROM rag_chunks, to_tsquery('simple', CAST(:tq AS text)) q
-            WHERE tsv @@ q ORDER BY ts_rank_cd(tsv, q) DESC LIMIT :n"""),
-            {"tq": " | ".join(terms), "n": depth}).scalars().all()
-    fused = rrf([list(vec_ids), list(fts_ids)])[:k]
+    emb_col, tsv_col, ts_cfg = columns(config.RAG_FTS_CONFIG if fts is None else fts,
+                                       config.RAG_CHUNK_CONTEXT if context is None else context)
+    queries = search_queries(question, config.RAG_BILINGUAL if bilingual is None else bilingual, model)
+    lists, best = [], None
+    for q, vec in zip(queries, ollama.embed(queries, kind="query")):
+        rows = db.execute(text(f"""
+            SELECT id::text, 1 - ({emb_col} <=> CAST(:q AS vector)) AS sim FROM rag_chunks
+            WHERE {emb_col} IS NOT NULL ORDER BY {emb_col} <=> CAST(:q AS vector) LIMIT :n"""),
+            {"q": vector_literal(vec), "n": depth}).all()
+        lists.append([r[0] for r in rows])
+        if rows:
+            best = float(rows[0][1]) if best is None else max(best, float(rows[0][1]))
+        terms = query_terms(q)
+        if terms:
+            lists.append(list(db.execute(text(f"""
+                SELECT id::text FROM rag_chunks, to_tsquery(CAST(:cfg AS regconfig), CAST(:tq AS text)) q
+                WHERE {tsv_col} @@ q ORDER BY ts_rank_cd({tsv_col}, q) DESC LIMIT :n"""),
+                {"cfg": ts_cfg, "tq": " | ".join(terms), "n": depth}).scalars().all()))
+    fused = rrf(lists)[:k]
     if not fused:
-        return []
+        return [], best
     rows = {r["id"]: r for r in db.execute(text("""
         SELECT c.id::text id, c.page, c.text, d.title, d.source_path
         FROM rag_chunks c JOIN rag_documents d ON d.id = c.document_id
@@ -79,4 +128,4 @@ def retrieve(db, question: str, k: int = config.TOP_K, depth: int = config.CANDI
         out.append({"n": n, "chunk_id": cid, "title": r["title"], "source_path": r["source_path"],
                     "page": r["page"], "snippet": snippet(r["text"]), "text": r["text"],
                     "score": round(score, 5)})
-    return out
+    return out, (round(best, 4) if best is not None else None)

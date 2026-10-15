@@ -1,15 +1,17 @@
 """Index documents for the RAG assistant.
 
-    python -m rag.ingest                       # data/rag/corpus/**/*.{pdf,md,txt} + docs/**/*.md
+    python -m rag.ingest                       # data/rag/corpus/**/*.{pdf,md,txt}
     python -m rag.ingest --path /data/rag/corpus/guide.pdf
+    python -m rag.ingest --contexts                 # rebuild chunk contexts + embedding_ctx only
 
-Run inside the api container (`docker compose exec api python -m rag.ingest`): the corpus and
-docs are mounted read-only at /data/rag/corpus and /data/docs, and Ollama is reached at OLLAMA_URL.
+Audience = field users (equipment / transport supervisors): only the field corpus is indexed
+(technical guides, and a future user guide placed in data/rag/corpus/). Developer docs (docs/) are not.
+Run inside the api container (`docker compose exec api python -m rag.ingest`): the corpus is mounted
+read-only at /data/rag/corpus, and Ollama is reached at OLLAMA_URL.
 Unchanged files (same sha256) are skipped; a changed file is deleted and re-indexed.
 """
 import argparse
 import hashlib
-import re
 import sys
 import time
 from pathlib import Path
@@ -18,11 +20,11 @@ from sqlalchemy import text
 
 from . import config, ollama
 from .chunking import chunk_pages
+from .context import build_contexts
+from .lang import detect_lang
 from .retrieve import vector_literal
 
 EXTENSIONS = {".pdf", ".md", ".txt"}
-_FR = set("le la les des du une est et pour dans sur par au aux que qui".split())
-_EN = set("the and of to is in for on with that by are be this".split())
 
 
 def discover(paths: list[str] | None) -> list[Path]:
@@ -31,28 +33,16 @@ def discover(paths: list[str] | None) -> list[Path]:
         for p in map(Path, paths):
             files.extend(sorted(f for f in p.rglob("*") if f.suffix.lower() in EXTENSIONS) if p.is_dir() else [p])
         return files
-    corpus = sorted(f for f in config.CORPUS_DIR.rglob("*")
-                    if f.is_file() and f.suffix.lower() in EXTENSIONS and f.name.lower() != "readme.md")
-    return corpus + sorted(config.DOCS_DIR.rglob("*.md"))
+    return sorted(f for f in config.CORPUS_DIR.rglob("*")
+                  if f.is_file() and f.suffix.lower() in EXTENSIONS and f.name.lower() != "readme.md")
 
 
 def source_path(f: Path) -> str:
-    """Stable relative id: corpus/<...> or docs/<...>."""
-    for root in (config.CORPUS_DIR.parent, config.DOCS_DIR.parent):
-        try:
-            return f.resolve().relative_to(root.resolve()).as_posix()
-        except ValueError:
-            continue
-    return f.as_posix()
-
-
-def detect_lang(sample: str) -> str:
-    letters = [c for c in sample if c.isalpha()]
-    if letters and sum("؀" <= c <= "ۿ" for c in letters) / len(letters) > 0.3:
-        return "ar"
-    words = re.findall(r"[a-zà-ÿ]+", sample.lower())
-    fr, en = sum(w in _FR for w in words), sum(w in _EN for w in words)
-    return "fr" if fr >= en else "en"
+    """Stable relative id: corpus/<...>."""
+    try:
+        return f.resolve().relative_to(config.CORPUS_DIR.parent.resolve()).as_posix()
+    except ValueError:
+        return f.as_posix()
 
 
 def read_document(f: Path) -> tuple[str, list[tuple[int | None, str]], int, list[int]]:
@@ -81,11 +71,18 @@ def _progress(name: str, done: int, total: int) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Index documents for the RAG assistant")
-    ap.add_argument("--path", action="append", help="file or folder (repeatable); default: corpus + docs")
+    ap.add_argument("--path", action="append", help="file or folder (repeatable); default: the corpus")
     ap.add_argument("--batch", type=int, default=16, help="chunks per Ollama /api/embed call")
+    ap.add_argument("--contexts", action="store_true",
+                    help="only rebuild chunk contexts + embedding_ctx for all indexed chunks (RAG_CHUNK_CONTEXT)")
     args = ap.parse_args(argv)
 
     from shared.db import engine
+    if args.contexts:
+        t0 = time.time()
+        n = backfill_contexts(engine, args.batch)
+        print(f"Contexts rebuilt for {n} chunk(s) in {time.time() - t0:.1f} s")
+        return 0
     t0 = time.time()
     files = discover(args.path)
     with engine.connect() as cx:
@@ -154,7 +151,39 @@ def main(argv=None) -> int:
         print(f"  duplicate      {line}")
     for line in failures:
         print(f"  failed         {line}")
+    try:  # new documents get their retrieval context right away
+        backfill_contexts(engine, args.batch, only_missing=True)
+    except ollama.OllamaUnavailable as exc:
+        print(f"Ollama unreachable ({exc}); run `python -m rag.ingest --contexts` later.", file=sys.stderr)
+        return 2
     return 1 if stats["failed"] and not stats["indexed"] and not stats["unchanged"] else 0
+
+
+def backfill_contexts(engine, batch: int = 16, only_missing: bool = False) -> int:
+    """Build rag_chunks.context (title — page header — heading, see rag/context.py) and embed
+    context + text into embedding_ctx. Chunk ids and texts are not touched. -> chunks updated."""
+    with engine.connect() as cx:
+        docs = cx.execute(text("""
+            SELECT d.id, d.title FROM rag_documents d
+            WHERE NOT CAST(:only AS boolean)
+               OR EXISTS (SELECT 1 FROM rag_chunks c WHERE c.document_id = d.id AND c.embedding_ctx IS NULL)
+            ORDER BY d.source_path"""), {"only": only_missing}).all()
+    done = 0
+    for doc_id, title in docs:
+        with engine.connect() as cx:
+            rows = cx.execute(text("SELECT id, page, text FROM rag_chunks WHERE document_id = :d ORDER BY chunk_index"),
+                              {"d": doc_id}).all()
+        contexts = build_contexts(title, [(r.page, r.text) for r in rows])
+        vectors = []
+        for i in range(0, len(rows), batch):
+            vectors += ollama.embed([f"{c}\n{r.text}" for c, r in zip(contexts[i:i + batch], rows[i:i + batch])])
+            _progress(f"context {title[:40]}", len(vectors), len(rows))
+        print()
+        with engine.begin() as cx:
+            cx.execute(text("UPDATE rag_chunks SET context = CAST(:c AS text), embedding_ctx = CAST(:e AS vector) WHERE id = :i"),
+                       [{"c": c, "e": vector_literal(v), "i": r.id} for c, v, r in zip(contexts, vectors, rows)])
+        done += len(rows)
+    return done
 
 
 def _store(engine, rel, title, sha, n_pages, lang, chunks, vectors) -> None:

@@ -2,6 +2,7 @@
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -12,9 +13,15 @@ from shared.db import get_db
 from . import config, ollama
 from .ollama import OllamaError, OllamaUnavailable
 from .prompt import REFUSAL, build_messages
-from .retrieve import retrieve
+from .retrieve import passes_gate, retrieve_scored
 
-router = APIRouter()
+
+class UTF8JSONResponse(JSONResponse):
+    """Explicit charset: PowerShell 5.1 (Invoke-RestMethod) otherwise decodes the French text as Latin-1."""
+    media_type = "application/json; charset=utf-8"
+
+
+router = APIRouter(default_response_class=UTF8JSONResponse)
 SUPERVISORS = ("equipment_supervisor", "transport_supervisor")
 UNAVAILABLE = ("Le service de langage (Ollama) est injoignable. Vérifiez qu'Ollama tourne sur l'hôte "
                "et écoute sur toutes les interfaces (OLLAMA_HOST=0.0.0.0), puis réessayez.")
@@ -29,7 +36,9 @@ def ask(req: AskRequest, db: Session = Depends(get_db), user=Depends(require_rol
     question = req.question.strip()
     t0 = time.perf_counter()
     try:
-        sources = retrieve(db, question)
+        sources, best = retrieve_scored(db, question)
+        if not passes_gate(best):        # nothing close enough in the documents: refuse without the LLM
+            sources = []
         answer = ollama.chat(build_messages(question, sources)) if sources else f"{REFUSAL}."
     except OllamaUnavailable:
         raise HTTPException(503, UNAVAILABLE)

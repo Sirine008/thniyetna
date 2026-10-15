@@ -51,7 +51,7 @@ def embed(texts: list[str], kind: str = "document") -> list[list[float]]:
     return out
 
 
-def chat(messages: list[dict]) -> str:
-    out = _request("/api/chat", {"model": config.RAG_LLM_MODEL, "messages": messages, "stream": False,
-                                 "options": config.CHAT_OPTIONS}, timeout=config.CHAT_TIMEOUT_S)
+def chat(messages: list[dict], model: str | None = None, options: dict | None = None) -> str:
+    out = _request("/api/chat", {"model": model or config.RAG_LLM_MODEL, "messages": messages, "stream": False,
+                                 "options": options or config.CHAT_OPTIONS}, timeout=config.CHAT_TIMEOUT_S)
     return (out.get("message") or {}).get("content", "").strip()

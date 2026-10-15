@@ -67,3 +67,10 @@ def test_status_matches_latest_tags(monkeypatch):
     monkeypatch.setattr(ollama, "tags", lambda: ["nomic-embed-text:latest", "llama3.2:3b"])
     out = R.status(db=FakeDb(), user=SUPERVISOR)
     assert out["ollama"]["reachable"] is True and all(out["ollama"]["models"].values())
+
+
+def test_assistant_json_declares_utf8():
+    assert R.router.default_response_class.media_type == "application/json; charset=utf-8"
+    resp = R.UTF8JSONResponse({"answer": "réseau"})
+    assert resp.headers["content-type"] == "application/json; charset=utf-8"
+    assert resp.body.decode("utf-8") == '{"answer":"réseau"}'
