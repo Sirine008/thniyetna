@@ -218,3 +218,18 @@ def score_segments(bundle, segments: pd.DataFrame, gov_fc: dict[str, Governorate
             "contract_version": CONTRACT_VERSION,
         })
     return results
+
+
+def exposure_percentiles(records: list[dict]) -> dict[str, float]:
+    """Display-only ranking: percentile of risk_score within the segment's governorate.
+
+    0 = least exposed, 1 = most exposed; ties share the lower rank. Not a probability and
+    not part of the RiskScore contract (stored next to it in risk_scores.components)."""
+    if not records:
+        return {}
+    df = pd.DataFrame({"sid": [r["segment_id"] for r in records], "gov": [r["governorate"] for r in records],
+                       "score": [r["risk_score"] for r in records]})
+    rank = df.groupby("gov")["score"].rank(method="min")
+    n = df.groupby("gov")["score"].transform("size")
+    pct = ((rank - 1) / (n - 1)).where(n > 1, 1.0)
+    return dict(zip(df["sid"], pct.round(4).astype(float)))

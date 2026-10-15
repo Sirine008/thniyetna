@@ -51,7 +51,7 @@ class FileSource:
     def complaints(self) -> pd.Series | None:
         return None
 
-    def write(self, gov_rows: pd.DataFrame, records: list[dict]) -> dict:
+    def write(self, gov_rows: pd.DataFrame, records: list[dict], exposure: dict[str, float] | None = None) -> dict:
         return {"governorate_rows": len(gov_rows), "segment_rows": len(records), "written": False}
 
 
@@ -140,8 +140,11 @@ class DbSource:
         return df.set_index("segment_id")["n"]
 
     # -- outputs --------------------------------------------------------------
-    def write(self, gov_rows: pd.DataFrame, records: list[dict]) -> dict:
+    def write(self, gov_rows: pd.DataFrame, records: list[dict], exposure: dict[str, float] | None = None) -> dict:
+        """`exposure` (segment_id -> within-governorate percentile) goes into risk_scores.components
+        only; the contract record stored in `features` stays exactly RiskScore 1.1.0."""
         from sqlalchemy import text
+        exposure = exposure or {}
         with self.engine.begin() as cx:
             for r in gov_rows.to_dict("records"):
                 cx.execute(text("""
@@ -159,10 +162,13 @@ class DbSource:
                      "tf": json.dumps(r["top_factors"], ensure_ascii=False),
                      "hs": int(r["history_staleness_days"]), "mv": r["model_version"]})
             for rec in records:
+                comp = dict(rec["components"])
+                if rec["segment_id"] in exposure:
+                    comp["exposure_percentile"] = exposure[rec["segment_id"]]
                 params = {
                     "sid": rec["segment_id"], "s": rec["risk_score"], "cat": legacy_category(rec["risk_level"]),
                     "lvl": rec["risk_level"], "h": rec["horizon_days"], "mv": rec["model"]["version"],
-                    "run": rec["model"]["mlflow_run_id"], "comp": json.dumps(rec["components"]),
+                    "run": rec["model"]["mlflow_run_id"], "comp": json.dumps(comp),
                     "tf": json.dumps(rec["top_factors"], ensure_ascii=False), "vu": rec["valid_until"],
                     "prio": rec["maintenance_priority"], "cond": rec["predicted_condition"],
                     "feat": json.dumps(rec, ensure_ascii=False, default=str),

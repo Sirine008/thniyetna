@@ -92,7 +92,9 @@ def to_markdown(card: dict) -> str:
         "accidents have no coordinates. It ranks road classes and lengths correctly but cannot single out a black spot.",
         "- The M1 condition component is a documented rule-based prior until labelled defect histories exist (`condition_model.py`).",
         "- The accident export ends before the scoring date: history features use the last observed day and the API reports "
-        "`history_staleness_days`.", "",
+        "`history_staleness_days`.",
+        "- `exposure_percentile` (risk_scores.components, API, UI) is a within-governorate ranking aid for display, "
+        "not a probability; absolute risk stays `risk_score` / `risk_level`.", "",
         "## Road-class weights (accident rate per km, relative)", "",
         "| Class | Weight |", "|---|---|",
     ]

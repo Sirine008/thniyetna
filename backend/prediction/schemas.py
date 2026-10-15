@@ -26,6 +26,7 @@ class RiskResponse(BaseModel):
     maintenance_priority: Optional[str] = None
     horizon_days: Optional[int] = None
     components: Optional[dict] = None
+    exposure_percentile: Optional[float] = None  # within-governorate rank of risk_score (display aid, not a probability)
     top_factors: List[RiskFactor] = []
     contributing_factors: List[str] = []
     model_version: str = "contextual-v1"

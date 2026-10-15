@@ -11,7 +11,7 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
   shipped model bundle is a pickle, do not upgrade scikit-learn / xgboost / numpy).
 - M2 commands run from `ml/` as modules: `python -m prediction.<module>`.
 - Stack: `docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 up -d --build`
-- DB from the host: `postgresql+psycopg://thniyetna:thniyetna_dev@localhost:5432/thniyetna`
+- DB from the host: `postgresql+psycopg://thniyetna:thniyetna_dev@localhost:5433/thniyetna`
 - `.env` at the repo root is already configured (JWT_SECRET, BOOTSTRAP_PASSWORD, DB settings).
   Do not modify it, recreate it from `.env.example`, or print its secret values.
 - Raw M2 data lives in `data/external/m2/` (not versioned): `accidents_tn.json`, `weather_reference.xlsx`,
@@ -44,7 +44,13 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
    otherwise restore the backup and record it as a negative result. Write a short comparison table
    in `docs/M2_WEATHER_EXPERIMENT.md`.
 
-### 2. End-to-end run of the M2 worker (never verified)
+### 2. End-to-end run of the M2 worker
+**Done 2026-10-15.** Stack up (db/api healthy; osrm, web, m2-worker have no healthcheck), 69,394 accidents + reference
+weather ingested, one scoring pass writes 675 Bizerte segments + 24 governorate forecasts/day; `/prediction/model` ok,
+`/prediction/governorates` 24 named rows, `/prediction/segments` + `/platform/map` serve all 675 segments. All segments
+score `low` (max 0.18), so `?min_level=high` is empty; the UI then shows the top 5 % by `exposure_percentile`
+(`?top=0.05`, display-only ranking). The worker log's `history_staleness_days` is taken on the last day of the 30-day
+segment horizon, while `governorate_risk_forecasts` stores only the first 7 days (17–24 on 2026-10-15) — not a bug. UI screens checked via the built bundle only, not with a logged-in session.
 1. Start the stack (command above); `docker compose ps` must show db, osrm, api, web, m2-worker healthy.
    If the m2-worker build fails, check the `mlflow-skinny==2.16.2` pin first.
 2. `$env:DATABASE_URL = "<DB from the host>"; python -m prediction.jobs.ingest all --gov Bizerte --classes motorway,national,regional`

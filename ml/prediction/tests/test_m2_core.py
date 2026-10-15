@@ -11,7 +11,7 @@ from prediction.config import GOV_CODES, RISK_LEVELS, gov_code
 from prediction.contract import validate, validate_many
 from prediction.features import build_inference_frame, build_training_panel, temporal_split
 from prediction.io_accidents import road_class_from_place
-from prediction.segment_risk import governorate_forecasts, score_segments
+from prediction.segment_risk import exposure_percentiles, governorate_forecasts, score_segments
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -104,6 +104,31 @@ def test_scores_respect_contract(bundle, accidents, weather, road_stats, segment
     by = {r["segment_id"]: r for r in recs}
     # same length, higher-risk class -> higher accident component
     assert by["a"]["components"]["accident"] > by["b"]["components"]["accident"]
+
+
+def test_exposure_percentile_per_governorate(bundle, accidents, weather, road_stats, segments):
+    import copy
+    fc = _forecast(bundle, accidents, weather, road_stats)
+    recs = score_segments(bundle, segments, fc, road_stats, as_of=datetime(2021, 12, 31, tzinfo=timezone.utc))
+    # second governorate whose scores are all below the first one's, with a tie and a zero
+    base = recs[0]
+    other = [{**copy.deepcopy(base), "segment_id": sid, "governorate": "TN-73", "risk_score": s,
+              "risk_level": RISK_LEVELS.level(s)} for sid, s in [("x", 0.0), ("y", 1e-4), ("z", 1e-4), ("w", 2e-4)]]
+    recs = recs + other
+    before = copy.deepcopy(recs)
+    pct = exposure_percentiles(recs)
+
+    assert recs == before  # risk_score / risk_level / components untouched
+    assert validate_many(recs) == len(recs)  # contract record unchanged
+    assert set(pct) == {r["segment_id"] for r in recs}
+    assert all(0.0 <= p <= 1.0 for p in pct.values())
+    for gov in {r["governorate"] for r in recs}:
+        rows = sorted((r for r in recs if r["governorate"] == gov), key=lambda r: r["risk_score"])
+        ps = [pct[r["segment_id"]] for r in rows]
+        assert ps == sorted(ps)  # monotonic with risk_score within the governorate
+        assert ps[0] == 0.0 and ps[-1] == 1.0  # ranked per governorate, not nationally
+    assert pct["y"] == pct["z"]  # ties share a rank
+    assert exposure_percentiles([base]) == {base["segment_id"]: 1.0}
 
 
 def test_m1_events_raise_risk_and_closed_events_are_ignored(bundle, accidents, weather, road_stats, segments):

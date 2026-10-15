@@ -23,7 +23,7 @@ from ..contract import validate_many
 from ..explain import contributions, top_factors
 from ..features import build_inference_frame
 from ..registry import load_bundle
-from ..segment_risk import governorate_forecasts, score_segments
+from ..segment_risk import exposure_percentiles, governorate_forecasts, score_segments
 
 
 def run_once(source, horizon_days: int | None = None, as_of: pd.Timestamp | None = None,
@@ -67,7 +67,7 @@ def run_once(source, horizon_days: int | None = None, as_of: pd.Timestamp | None
                              rain30_by_gov=rain30, horizon_days=horizon_days, condition_model=cond_model,
                              as_of=datetime(as_of.year, as_of.month, as_of.day, tzinfo=timezone.utc)) if len(segs) else []
     validate_many(records)
-    written = source.write(gov_rows, records)
+    written = source.write(gov_rows, records, exposure=exposure_percentiles(records))
     stale = int(feats["history_staleness_days"].max())
     return {"as_of": str(as_of.date()), "model_version": bundle.version, "horizon_days": horizon_days,
             "condition_model": cond_model.version if cond_model else "rule-prior",

@@ -45,6 +45,7 @@ def _model_response(row) -> RiskResponse:
         risk_category=row["risk_category"], risk_level=row["risk_level"],
         predicted_condition=row["predicted_condition"], maintenance_priority=row["maintenance_priority"],
         horizon_days=row["horizon_days"], components=row["components"], top_factors=factors,
+        exposure_percentile=(row["components"] or {}).get("exposure_percentile"),
         contributing_factors=[f"{f['feature']} ({f['contribution']:+.2f})" for f in factors],
         model_version=row["model_version"], source="m2-model",
         computed_at=row["computed_at"], valid_until=row["valid_until"],
@@ -124,9 +125,11 @@ def get_risk_contract(segment_id: str, db: Session = Depends(get_db)):
 
 @router.get("/segments", response_model=list[RiskResponse])
 def segment_risks(min_level: str | None = Query(default=None, pattern="^(low|medium|high|critical)$"),
+                  top: float | None = Query(default=None, gt=0, le=1),
                   db: Session = Depends(get_db)):
     """Latest score of every segment. Model scores are read, never recomputed; only
-    segments without a fresh model score go through the contextual fallback."""
+    segments without a fresh model score go through the contextual fallback.
+    `top=0.05` keeps the 5 % most exposed segments of their governorate (exposure_percentile)."""
     rows = db.execute(text("""
         SELECT DISTINCT ON (r.segment_id) r.segment_id::text segment_id, s.segment_code, r.risk_score,
                r.risk_category, r.risk_level, r.predicted_condition, r.maintenance_priority, r.horizon_days,
@@ -143,6 +146,9 @@ def segment_risks(min_level: str | None = Query(default=None, pattern="^(low|med
         order = ["low", "medium", "high", "critical"]
         keep = order[order.index(min_level):]
         out = [r for r in out if (r.risk_level or r.risk_category) in keep]
+    if top is not None:
+        out = [r for r in out if r.exposure_percentile is not None and r.exposure_percentile >= 1 - top]
+        return sorted(out, key=lambda r: (r.exposure_percentile, r.risk_score), reverse=True)
     return sorted(out, key=lambda r: r.risk_score, reverse=True)
 
 
