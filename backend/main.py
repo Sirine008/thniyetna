@@ -7,6 +7,7 @@ from media.router import router as media_router
 from perception.router import router as perception_router
 from platform_app.router import router as platform_router
 from prediction.router import router as prediction_router
+from rag.router import router as assistant_router
 from realtime.router import router as realtime_router
 from routing.router import router as routing_router
 from shared.config import MEDIA_PUBLIC_PREFIX, MEDIA_ROOT
@@ -37,6 +38,7 @@ app.include_router(routing_router, prefix="/routing", tags=["M3 Routing"])
 app.include_router(platform_router, prefix="/platform", tags=["M4 Platform"])
 app.include_router(realtime_router, prefix="/realtime", tags=["Realtime"])
 app.include_router(media_router, prefix="/media", tags=["Media"])
+app.include_router(assistant_router, prefix="/assistant", tags=["Assistant (RAG)"])
 
 
 @app.get("/health")

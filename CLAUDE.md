@@ -67,3 +67,22 @@ segment horizon, while `governorate_risk_forecasts` stores only the first 7 days
 ### 4. Limits to state in the report (from docs/M2_MODEL_CARD.md, the card of the shipped `2026.10.11-2054`)
 No accident GPS (segment risk is an exposure allocation) · within-governorate day timing ≈ chance (AUC 0.52) ·
 history carries the signal · trees do not beat logistic regression · accident export lags the scoring date.
+
+## RAG assistant (part A)
+- Ollama on the **Windows host**: LLM `llama3.2:3b`, embeddings `nomic-embed-text` (768 dims). The api reads
+  `OLLAMA_URL` / `RAG_LLM_MODEL` / `RAG_EMBED_MODEL` (defaults in `backend/rag/config.py`, documented in `.env.example`).
+  If the api cannot reach Ollama, the user sets `OLLAMA_HOST=0.0.0.0` on Windows; do not work around it.
+- No torch / sentence-transformers / large downloads (mobile data, CPU only). The only RAG dependency is `pypdf`.
+- DB image = `infra/db/Dockerfile` (postgis 16-3.4 + pgvector 0.8.6 from the frozen PGDG **archive**, because
+  bullseye-pgdg was removed from apt.postgresql.org). Tables: Alembic `0004_rag` (`rag_documents`, `rag_chunks`
+  with HNSW + GIN, `rag_queries` = evaluation log).
+- Add documents to `data/rag/corpus/` (never commit them; only its README is versioned), then index (skips unchanged files):
+  `docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest`
+- Endpoints (both supervisor roles): `POST /assistant/ask`, `GET /assistant/status`.
+- Tests: `tests/test_rag_core.py` runs anywhere; `tests/test_rag_api.py` needs fastapi (skipped in `ml/.venv`,
+  run it in the api image).
+- First check (2026-10-15, 14 docs / 625 chunks): plumbing works, but both test questions were refused.
+  "Limites du modèle M2 ?" → retrieval miss (French question vs English model card; the limits chunk is not in
+  the top 4). "Nid-de-poule par temps froid ?" → the cold-mix pages are retrieved, but llama3.2:3b still answers
+  the refusal sentence. Answer quality is the open item for part B. PowerShell 5.1 shows the API's UTF-8 as
+  mojibake (no charset in `application/json`); the stored text is correct.

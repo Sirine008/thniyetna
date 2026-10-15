@@ -36,3 +36,7 @@ reports/m2/runs/
 !models/m2/*.joblib
 
 backup/
+
+# RAG corpus: external documents, not versioned (only the README is)
+data/rag/corpus/*
+!data/rag/corpus/README.md

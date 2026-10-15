@@ -220,6 +220,24 @@ docker compose --profile m1 up -d --build perception-worker
 
 M1 training and benchmarking instructions are in `ml/perception/README.md`.
 
+## RAG assistant
+
+Supervisors (equipment and transport) can ask questions answered only from indexed documents,
+with numbered citations: `POST /assistant/ask {"question": "..."}`, `GET /assistant/status`.
+
+- **Models:** Ollama runs on the Windows host (`ollama pull llama3.2:3b`, `ollama pull nomic-embed-text`).
+  The api container reaches it at `OLLAMA_URL` (default `http://host.docker.internal:11434`); see `.env.example`.
+  If `/assistant/status` shows `reachable: false`, set `OLLAMA_HOST=0.0.0.0` on Windows and restart Ollama.
+- **Storage:** pgvector in the `db` image (`infra/db/Dockerfile`), tables from Alembic `0004_rag`.
+- **Retrieval:** hybrid. Vector cosine top-20 and full-text top-20 are fused with Reciprocal Rank Fusion, and the top 4 chunks are kept.
+- **Adding documents:** put PDFs with a text layer, or `.md`/`.txt` files, in `data/rag/corpus/`
+  (not versioned; see its README for the naming convention). `docs/**/*.md` is indexed too.
+- **(Re-)indexing:** unchanged files are skipped and modified ones are re-indexed:
+
+```powershell
+docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest
+```
+
 ## Optional MLflow
 
 ```powershell

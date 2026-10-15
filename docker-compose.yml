@@ -2,7 +2,10 @@ name: thniyetna
 
 services:
   db:
-    image: postgis/postgis:16-3.4
+    # postgis/postgis:16-3.4 + pgvector (RAG assistant); same PG16 data volume.
+    build:
+      context: ./infra/db
+    image: thniyetna-db:pg16-pgvector
     container_name: thniyetna-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-thniyetna}
@@ -47,10 +50,18 @@ services:
       MEDIA_PUBLIC_PREFIX: /media/files
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # RAG assistant: Ollama runs on the Windows host
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      RAG_LLM_MODEL: ${RAG_LLM_MODEL:-llama3.2:3b}
+      RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-nomic-embed-text}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
       - media_data:/data/media
+      - ./data/rag:/data/rag:ro            # RAG corpus (python -m rag.ingest)
+      - ./docs:/data/docs:ro               # project docs, also indexed
     depends_on:
       db:
         condition: service_healthy
