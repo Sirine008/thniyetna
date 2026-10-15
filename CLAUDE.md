@@ -111,3 +111,14 @@ history carries the signal · trees do not beat logistic regression · accident 
   unanswerable one) and reports leave-one-out next to the in-sample result. It is tuned on the evaluation set;
   say so, and set the value in `VARIANTS` for confidence_gate / numbers_rule before running them.
 - `/assistant` responses declare `application/json; charset=utf-8` (PowerShell 5.1 mojibake fixed).
+- Part B (UI for field users, French only): tab "Assistant" in both ministries (`frontend/src/components/Assistant.jsx`,
+  last 5 Q&A kept in sessionStorage) and "Fiche d'intervention" on the rows of "Priorités d'entretien"
+  (`InterventionSheet.jsx`, printable). `POST /assistant/intervention/{segment_code}` (equipment_supervisor,
+  `backend/rag/intervention.py`): Constat / Priorité / Données manquantes come from the DB by template (numbers as
+  stored, never by the LLM); advice sections come from 6 retrieved chunks with [n]; a section without citation is
+  flagged `uncited` and shown with a warning. No defect on the segment → only "Conseils d'inspection". Ollama down →
+  the DB sections are still returned (`assistant_available: false`). Sources carry a 400-char `excerpt`
+  (`/ask` too). nginx `/api/assistant/` has `proxy_read_timeout 300s` (a sheet took 58 s on a cold model).
+- Live check 2026-10-15 (equipment.supervisor, OSM-100663969, P3, no defect): the sheet is correct, but its advice
+  had no [n] (now flagged). `/ask` "température minimale enrobé chaud" answered "0 °C" (wrong, same failure as eval
+  q12; the guides say > 10 °C) — the excerpts and the notice are there so users can catch it.

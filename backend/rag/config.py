@@ -28,3 +28,7 @@ TRANSLATE_OPTIONS = {"temperature": 0, "num_ctx": 1024, "num_predict": 120}
 CHAT_TIMEOUT_S = 180
 EMBED_TIMEOUT_S = 120
 CHAT_OPTIONS = {"temperature": 0.2, "num_ctx": 4096, "num_predict": 400}
+# Intervention sheet: 6 sources and up to 3 written sections need a longer answer.
+INTERVENTION_TOP_K = 6
+INTERVENTION_CHAT_OPTIONS = {"temperature": 0.2, "num_ctx": 4096, "num_predict": 700}
+EXCERPT_CHARS = 400                  # source excerpt shown to users so they can verify the answer

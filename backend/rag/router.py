@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 from shared.auth import require_role
 from shared.db import get_db
 
-from . import config, ollama
+from . import config, intervention, ollama
 from .ollama import OllamaError, OllamaUnavailable
 from .prompt import REFUSAL, build_messages
-from .retrieve import passes_gate, retrieve_scored
+from .retrieve import passes_gate, retrieve_scored, snippet
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -31,6 +31,21 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
 
 
+def public_source(s: dict) -> dict:
+    """What the user sees of a source: document, page and an excerpt long enough to verify the answer."""
+    return {**{k: s[k] for k in ("n", "title", "source_path", "page", "snippet", "score")},
+            "excerpt": snippet(s["text"], config.EXCERPT_CHARS)}
+
+
+def log_query(db, user: dict, question: str, sources: list[dict], answer: str, latency_ms: int) -> None:
+    db.execute(text("""
+        INSERT INTO rag_queries (asked_by, question, retrieved_chunk_ids, model, latency_ms, answer)
+        VALUES (CAST(:u AS text), CAST(:q AS text), CAST(:ids AS uuid[]), CAST(:m AS text), :ms, CAST(:a AS text))"""),
+        {"u": user.get("sub"), "q": question, "ids": [s["chunk_id"] for s in sources],
+         "m": config.RAG_LLM_MODEL, "ms": latency_ms, "a": answer})
+    db.commit()
+
+
 @router.post("/ask")
 def ask(req: AskRequest, db: Session = Depends(get_db), user=Depends(require_role(*SUPERVISORS))):
     question = req.question.strip()
@@ -45,14 +60,45 @@ def ask(req: AskRequest, db: Session = Depends(get_db), user=Depends(require_rol
     except OllamaError as exc:
         raise HTTPException(502, f"Erreur du service de langage : {exc}")
     latency_ms = int((time.perf_counter() - t0) * 1000)
-    db.execute(text("""
-        INSERT INTO rag_queries (asked_by, question, retrieved_chunk_ids, model, latency_ms, answer)
-        VALUES (CAST(:u AS text), CAST(:q AS text), CAST(:ids AS uuid[]), CAST(:m AS text), :ms, CAST(:a AS text))"""),
-        {"u": user.get("sub"), "q": question, "ids": [s["chunk_id"] for s in sources],
-         "m": config.RAG_LLM_MODEL, "ms": latency_ms, "a": answer})
-    db.commit()
-    return {"answer": answer,
-            "sources": [{k: s[k] for k in ("n", "title", "source_path", "page", "snippet", "score")} for s in sources],
+    log_query(db, user, question, sources, answer, latency_ms)
+    return {"answer": answer, "sources": [public_source(s) for s in sources],
+            "model": config.RAG_LLM_MODEL, "latency_ms": latency_ms}
+
+
+@router.post("/intervention/{segment_code}")
+def intervention_sheet(segment_code: str, db: Session = Depends(get_db),
+                       user=Depends(require_role("equipment_supervisor"))):
+    """Intervention sheet: Constat / Priorité / Données manquantes from the database (template, numbers as
+    stored), advice sections written by the LLM from 6 guide excerpts with citations [n].
+    If Ollama is unreachable the database sections are still returned (assistant_available = false)."""
+    facts = intervention.gather_facts(db, segment_code)
+    if facts is None:
+        raise HTTPException(404, f"Segment inconnu : {segment_code}")
+    t0 = time.perf_counter()
+    query = intervention.retrieval_query(facts)
+    spec = intervention.llm_sections_spec(facts)
+    available, answer, sources = True, "", []
+    try:
+        sources, best = retrieve_scored(db, query, k=config.INTERVENTION_TOP_K)
+        if not passes_gate(best):
+            sources = []
+        if sources:
+            answer = ollama.chat(intervention.llm_messages(facts, sources), options=config.INTERVENTION_CHAT_OPTIONS)
+            advice = intervention.parse_sections(answer, spec)
+        else:
+            advice = [{"key": k, "title": t, "origin": "assistant", "text": f"{REFUSAL}."} for k, t in spec]
+    except OllamaUnavailable:
+        available, sources = False, []
+        advice = [{"key": k, "title": t, "origin": "assistant", "text": UNAVAILABLE} for k, t in spec]
+    except OllamaError as exc:
+        raise HTTPException(502, f"Erreur du service de langage : {exc}")
+    latency_ms = int((time.perf_counter() - t0) * 1000)
+    if available:
+        log_query(db, user, f"Fiche d'intervention {segment_code} : {query}", sources, answer, latency_ms)
+    return {"segment": facts["segment"], "facts": facts, "no_defect": not intervention.has_defect(facts),
+            "query": query, "assistant_available": available,
+            "sections": intervention.assemble(intervention.template_sections(facts), advice),
+            "sources": [public_source(s) for s in sources],
             "model": config.RAG_LLM_MODEL, "latency_ms": latency_ms}
 
 

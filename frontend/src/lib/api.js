@@ -78,6 +78,10 @@ export const api = {
   // M2 risk prediction
   governorateForecasts: () => request('/prediction/governorates'),
   riskModel: () => request('/prediction/model'),
+  // RAG assistant (answers take 30–40 s on the CPU)
+  assistantStatus: () => request('/assistant/status', { auth: true }),
+  ask: question => request('/assistant/ask', { auth: true, method: 'POST', body: { question } }),
+  interventionSheet: segmentCode => request(`/assistant/intervention/${encodeURIComponent(segmentCode)}`, { auth: true, method: 'POST' }),
   // Staff accounts of the supervisor's ministry
   staffList: () => request('/auth/staff', { auth: true }),
   createStaff: body => request('/auth/staff', { auth: true, method: 'POST', body }),
