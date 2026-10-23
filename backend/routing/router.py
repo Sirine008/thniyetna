@@ -87,13 +87,49 @@ def _segment_risk(db,line):
     mean=sum(float(r["risk_score"])*float(r["overlap_m"]) for r in rows)/total
     return round(min(1.0,.72*peak+.28*mean),3),len(rows)
 
-def _route_exposure(line,hazards,radius_m=105):
+HAZARD_RADIUS_M=105
+# True distance (geography, metres) from each hazard to the whole route LineString. Measuring to route
+# vertices missed hazards lying between two far-apart vertices (OSRM puts few on straight roads).
+_HAZARD_DISTANCE_SQL=text("""
+  WITH r AS (SELECT ST_SetSRID(ST_GeomFromText(:wkt),4326)::geography g),
+  h AS (SELECT t.i, ST_SetSRID(ST_MakePoint(t.lon,t.lat),4326)::geography p
+        FROM unnest(CAST(:lats AS float8[]),CAST(:lons AS float8[])) WITH ORDINALITY AS t(lat,lon,i))
+  SELECT h.i-1 AS idx, ST_Distance(r.g,h.p) AS d FROM r,h WHERE ST_DWithin(r.g,h.p,:radius)
+""")
+
+def _wkt(line):return "LINESTRING("+",".join(f"{lon} {lat}" for lat,lon in line)+")"
+
+def _point_segment_m(lat,lon,a,b):
+    """Distance from a point to segment a-b, local equirectangular metres (fallback without PostGIS)."""
+    k=111320.0*math.cos(math.radians(lat))
+    ax,ay=(a[1]-lon)*k,(a[0]-lat)*110540.0; bx,by=(b[1]-lon)*k,(b[0]-lat)*110540.0
+    dx,dy=bx-ax,by-ay; n=dx*dx+dy*dy
+    t=0.0 if n==0 else max(0.0,min(1.0,-(ax*dx+ay*dy)/n))
+    return math.hypot(ax+t*dx,ay+t*dy)
+
+def _hazard_distances(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
+    """{hazard index: true distance in m to the route} for the hazards within radius_m of the route."""
+    if not hazards or len(line)<2:return {}
+    if db is not None and hasattr(db,"execute"):
+        try:
+            rows=db.execute(_HAZARD_DISTANCE_SQL,{"wkt":_wkt(line),"radius":radius_m,
+                "lats":[float(h["lat"]) for h in hazards],"lons":[float(h["lon"]) for h in hazards]}).mappings().all()
+            return {int(r["idx"]):float(r["d"]) for r in rows}
+        except Exception:
+            db.rollback()  # no PostGIS (tests, fresh DB): exact geometry in Python below
+    out={}
+    for i,h in enumerate(hazards):
+        lat,lon=float(h["lat"]),float(h["lon"])
+        d=min(_point_segment_m(lat,lon,line[j],line[j+1]) for j in range(len(line)-1))
+        if d<radius_m:out[i]=d
+    return out
+
+def _route_exposure(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
     """Risk is based on actual distance between a candidate geometry and hazards."""
     if not hazards or not line:return 0.0,0
-    sample=line[::max(1,len(line)//180)]
     exposure=[]
-    for h in hazards:
-        d=min(haversine_m(p[0],p[1],float(h["lat"]),float(h["lon"])) for p in sample)
+    for i,d in _hazard_distances(line,hazards,db,radius_m).items():
+        h=hazards[i]
         if d<radius_m:
             # Stronger penalty near the pothole, fading to zero at radius_m.
             exposure.append(float(h.get("risk") or .5)*(1-d/radius_m))
@@ -104,7 +140,7 @@ def _route_exposure(line,hazards,radius_m=105):
 
 def _candidate(route,hazards,db=None):
     line=_line(route)
-    hazard_risk,count=_route_exposure(line,hazards)
+    hazard_risk,count=_route_exposure(line,hazards,db)
     segment_risk,segments=_segment_risk(db,line)
     # max() rather than a probabilistic sum: a segment holding an M1 event already
     # carries that event in its M2 score, so adding both would count it twice.
