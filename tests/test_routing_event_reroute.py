@@ -25,26 +25,72 @@ def osrm(points, duration):
     return {"geometry": {"coordinates": [[lon, lat] for lat, lon in points]}, "distance": 3000.0, "duration": duration}
 
 
+class FakeResult:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def mappings(self):
+        return self
+
+    def all(self):
+        return self.rows
+
+
 class FakeDB:
+    """In-memory notification_outbox for the driver-alert queries; anything else raises (PostGIS fallback)."""
+
+    def __init__(self):
+        self.outbox = []
+
+    def execute(self, stmt, params):
+        sql = str(stmt).lstrip()
+        if sql.startswith("SELECT") and "FROM notification_outbox" in sql:
+            rows = [r for r in self.outbox if r["recipient"] == params["u"] and r["topic"] in R.DRIVER_ALERT_TOPICS
+                    and r["status"] == "pending" and r["payload"].get("line_key") == params["k"]
+                    and not r["payload"].get("superseded")]
+            rows.sort(key=lambda r: -r["seq"])
+            return FakeResult([{"id": r["id"], "topic": r["topic"], "hazard_key": r["payload"].get("hazard_key")}
+                               for r in rows])
+        if sql.startswith("UPDATE notification_outbox") and "confirmations" in sql:
+            row = next(r for r in self.outbox if r["id"] == params["id"])
+            row["payload"].update(confirmations=row["payload"].get("confirmations", 1) + 1, last_confirmed_at="now",
+                                  risk=params["risk"], reason=params["reason"])
+            return FakeResult([])
+        if sql.startswith("UPDATE notification_outbox") and "superseded" in sql:
+            for r in self.outbox:
+                if r["id"] in params["ids"]:
+                    r["payload"].update(superseded=True, superseded_note=params["note"])
+            return FakeResult([])
+        raise NotImplementedError(sql[:40])
+
     def commit(self):
         pass
 
     def rollback(self):
         pass
 
+    def active(self):
+        return [r for r in self.outbox if r["status"] == "pending" and not r["payload"].get("superseded")]
+
 
 @pytest.fixture
 def m3(monkeypatch):
-    """Point hazards only (no M2 segment score), OSRM stubbed, alerts captured."""
+    """Point hazards only (no M2 segment score), OSRM stubbed, alerts captured (and stored in a FakeDB)."""
     published = []
     monkeypatch.setattr(R, "_segment_risk", lambda db, line: (0.0, 0))
-    monkeypatch.setattr(R, "publish", lambda db, topic, payload, recipient=None:
-                        published.append({"topic": topic, "payload": payload, "recipient": recipient}))
+
+    def publish(db, topic, payload, recipient=None):
+        published.append({"topic": topic, "payload": payload, "recipient": recipient})
+        if isinstance(db, FakeDB):
+            db.outbox.append({"id": f"a{len(db.outbox)}", "seq": len(db.outbox), "topic": topic,
+                              "recipient": recipient, "payload": dict(payload), "status": "pending"})
+    monkeypatch.setattr(R, "publish", publish)
 
     def setup(hazards, routes, detours=()):
         monkeypatch.setattr(R, "_risk_points", lambda db: hazards)
         monkeypatch.setattr(R, "_fetch_osrm", lambda coords, alternatives=0:
                             list(routes) if len(coords) == 2 else list(detours))
+        published.clear()
         return published
     return setup
 
@@ -199,3 +245,67 @@ def test_response_reports_eligible_alternatives(m3):
     m3([EVENT], [osrm(DIRECT, 300), osrm(NORTH, 420)])
     res = R.get_route(REQ, None)
     assert res.eligible_alternatives == 1 and res.best_eligible_risk == res.risk == 0.0
+
+
+VIA = [[37.270, 9.850], [37.280, 9.850], [37.280, 9.865], [37.270, 9.865], [37.270, 9.880]]  # crosses EVENT
+
+
+def test_same_decision_and_hazards_refresh_the_active_alert(m3):
+    db = FakeDB()
+    published = m3([EVENT], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    first = R.driver_next_best(REQ, db, DRIVER)
+    second = R.driver_next_best(REQ, db, DRIVER)
+    assert (first.alert_state, second.alert_state) == ("new", "refreshed")
+    assert [p["topic"] for p in published] == ["driver.route.warning"]  # published once
+    assert len(db.active()) == 1 and db.active()[0]["payload"]["confirmations"] == 2
+
+
+def test_new_alert_when_hazards_change_and_the_old_one_is_superseded(m3):
+    db = FakeDB()
+    m3([EVENT], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    R.driver_next_best(REQ, db, DRIVER)
+    published = m3([EVENT, {**EVENT, "lon": 9.875}], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    res = R.driver_next_best(REQ, db, DRIVER)
+    assert res.alert_state == "new" and len(published) == 1
+    assert [r["payload"].get("superseded", False) for r in db.outbox] == [True, False]
+
+
+def test_new_alert_when_the_decision_changes(m3):
+    db = FakeDB()
+    m3([EVENT], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    assert R.driver_next_best(REQ, db, DRIVER).alert_state == "new"          # warning
+    m3([EVENT], [osrm(DIRECT, 300), osrm(NORTH, 420)])
+    res = R.driver_next_best(REQ, db, DRIVER)                                # same hazard, now a detour
+    assert res.reroute_needed and res.alert_state == "new"
+    assert [r["topic"] for r in db.active()] == ["driver.reroute.alert"]
+
+
+def test_alert_is_resolved_when_the_route_becomes_normal(m3):
+    db = FakeDB()
+    m3([EVENT], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    R.driver_next_best(REQ, db, DRIVER)
+    published = m3([], [osrm(DIRECT, 300)])
+    res = R.driver_next_best(REQ, db, DRIVER)
+    assert res.alert_state == "resolved" and published == [] and db.active() == []
+    assert db.outbox[0]["payload"]["superseded_note"] == "Itinéraire redevenu normal"
+
+
+def test_acknowledged_alert_is_not_refreshed_and_other_lines_are_separate(m3):
+    db = FakeDB()
+    published = m3([EVENT], [osrm(DIRECT, 300), osrm(VIA, 420)], detours=[osrm(VIA, 420)])
+    R.driver_next_best(REQ, db, DRIVER)
+    db.outbox[0]["status"] = "delivered"                                  # the driver acknowledged it
+    assert R.driver_next_best(REQ, db, DRIVER).alert_state == "new"
+    other_line = REQ.model_copy(update={"vehicle_id": "DEMO-BUS-02"})
+    assert R.driver_next_best(other_line, db, DRIVER).alert_state == "new"
+    assert len(published) == 3
+
+
+def test_alert_action_rules():
+    a = [{"id": "x", "topic": "driver.route.warning", "hazard_key": "k"},
+         {"id": "y", "topic": "driver.route.warning", "hazard_key": "k"}]
+    assert R._alert_action(a, "driver.route.warning", "k") == ("refresh", ["x"])
+    assert R._alert_action(a, "driver.route.warning", "k2") == ("new", ["x", "y"])
+    assert R._alert_action(a, "driver.reroute.alert", "k") == ("new", ["x", "y"])
+    assert R._alert_action(a, None, "") == ("resolve", ["x", "y"])
+    assert R._alert_action([], None, "") == ("none", [])

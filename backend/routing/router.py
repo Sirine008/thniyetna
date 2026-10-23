@@ -363,6 +363,47 @@ def list_assignments(db:Session=Depends(get_db),user=Depends(require_role("trans
 def driver_route(db:Session=Depends(get_db),user=Depends(require_role("bus_driver"))):
     rows=db.execute(text("""SELECT ra.id::text assignment_id,r.route_code,r.name,v.vehicle_code,v.label,ST_AsGeoJSON(r.geom)::json geometry,r.metadata FROM route_assignments ra JOIN official_routes r ON r.id=ra.route_id JOIN vehicles v ON v.id=ra.vehicle_id WHERE ra.driver_username=:u AND ra.active ORDER BY ra.created_at DESC"""),{"u":user["sub"]}).mappings().all(); return list(rows)
 
+DRIVER_ALERT_TOPICS=("driver.reroute.alert","driver.route.warning")
+
+def _line_key(req):
+    return f"{req.vehicle_id}:{req.destination_lat:.4f},{req.destination_lon:.4f}"
+
+def _hazard_key(hazards):
+    return "|".join(sorted(f"{h.type}@{h.latitude:.5f},{h.longitude:.5f}" for h in hazards))
+
+def _alert_action(active,topic,hazard_key):
+    """Decide from the active alerts of this driver/line (newest first): ('refresh', id) when the latest has
+    the same decision and hazard set, else ('new', ids to supersede); topic None (normal route) -> ('resolve', ids)."""
+    ids=[a["id"] for a in active]
+    if topic is None:return ("resolve",ids) if ids else ("none",[])
+    if active and active[0]["topic"]==topic and active[0]["hazard_key"]==hazard_key:return ("refresh",ids[:1])
+    return ("new",ids)
+
+_ACTIVE_ALERTS_SQL=text("""
+  SELECT id::text,topic,payload->>'hazard_key' hazard_key FROM notification_outbox
+  WHERE recipient_ref=:u AND topic IN ('driver.reroute.alert','driver.route.warning') AND status='pending'
+    AND payload->>'line_key'=:k AND NOT coalesce((payload->>'superseded')::boolean,false)
+  ORDER BY created_at DESC""")
+
+def _driver_alert(db,driver,topic,payload,line_key,hazard_key):
+    """One active alert per driver and line. Same decision + same hazards: refresh it (created_at is kept, so
+    the SSE stream does not push it again); otherwise supersede it and publish a new one."""
+    active=db.execute(_ACTIVE_ALERTS_SQL,{"u":driver,"k":line_key}).mappings().all()
+    action,ids=_alert_action(active,topic,hazard_key)
+    if action=="refresh":
+        db.execute(text("""UPDATE notification_outbox SET payload=payload||jsonb_build_object(
+            'last_confirmed_at',CAST(now() AS text),'confirmations',coalesce((payload->>'confirmations')::int,1)+1,
+            'risk',CAST(:risk AS float8),'reason',CAST(:reason AS text)) WHERE id=CAST(:id AS uuid)"""),
+            {"id":ids[0],"risk":payload["risk"],"reason":payload["reason"]})
+    elif ids:
+        db.execute(text("""UPDATE notification_outbox SET payload=payload||jsonb_build_object('superseded',true,
+            'superseded_note',CAST(:note AS text)) WHERE id=ANY(CAST(:ids AS uuid[]))"""),
+            {"ids":ids,"note":"Itinéraire redevenu normal" if action=="resolve" else "Remplacée : décision ou dangers changés"})
+    if action=="new":
+        publish(db,topic,{**payload,"line_key":line_key,"hazard_key":hazard_key,"confirmations":1},driver)
+    db.commit()
+    return {"refresh":"refreshed","new":"new","resolve":"resolved"}.get(action,"none")
+
 @router.post("/driver/next-best",response_model=RouteResponse)
 def driver_next_best(req:RouteRequest,db:Session=Depends(get_db),user=Depends(require_role("bus_driver"))):
     response=get_route(req,db)
@@ -370,9 +411,12 @@ def driver_next_best(req:RouteRequest,db:Session=Depends(get_db),user=Depends(re
             "route_id":response.route_id,"hazards_on_initial":response.hazards_on_initial,
             "logic_version":response.logic_version}
     if response.reroute_needed:
-        publish(db,"driver.reroute.alert",{**common,"hazards_on_alternative":response.hazards_on_best,
-                                            "alternative_risk":response.risk},user["sub"]); db.commit()
+        topic,payload="driver.reroute.alert",{**common,"hazards_on_alternative":response.hazards_on_best,
+                                              "alternative_risk":response.risk}
     elif response.warning:
-        publish(db,"driver.route.warning",{**common,"title":WARNING_TITLE,
-                                            "hazards":[h.model_dump() for h in response.hazards]},user["sub"]); db.commit()
+        topic,payload="driver.route.warning",{**common,"title":WARNING_TITLE,
+                                              "hazards":[h.model_dump() for h in response.hazards]}
+    else:
+        topic,payload=None,common
+    response.alert_state=_driver_alert(db,user["sub"],topic,payload,_line_key(req),_hazard_key(response.hazards))
     return response

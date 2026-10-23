@@ -55,6 +55,7 @@ class RouteResponse(BaseModel):
     eligible_alternatives: int = 0             # alternatives that avoid every triggering hazard
     best_eligible_risk: Optional[float] = None  # lowest risk among them (rerouted only if 0.12 safer)
     logic_version: str = "m3-v2"
+    alert_state: Optional[str] = None  # driver checks only: new / refreshed / resolved / none
 
 
 class RouteCreate(BaseModel):
