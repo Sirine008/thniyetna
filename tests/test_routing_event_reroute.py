@@ -153,3 +153,19 @@ def test_detour_is_searched_around_a_hazard_far_from_the_trip_midpoint(monkeypat
     # the midpoint search alone (previous behaviour) only finds routes through the hazard
     monkeypatch.setattr(R, "_hazard_detours", lambda req, line, hazards: [])
     assert not R.get_route(REQ, None).reroute_needed
+
+
+def test_grid_different_enough_matches_the_brute_force_definition():
+    import random
+
+    def brute(a, b):  # the previous implementation, kept as the reference
+        bs = b[::max(1, len(b) // 120)]; aa = a[::max(1, len(a) // 120)]
+        near = sum(1 for p in aa if min(haversine_m(p[0], p[1], q[0], q[1]) for q in bs) < 45)
+        return near / max(1, len(aa)) < .78
+
+    rng = random.Random(7)
+    for _ in range(300):
+        base = [[37.27 + i * 0.0004, 9.85 + rng.uniform(-0.0003, 0.0003)] for i in range(rng.randint(5, 300))]
+        shift = rng.choice([0.0, 0.0002, 0.0004, 0.0006, 0.002])
+        other = [[lat + rng.uniform(-shift, shift), lon + rng.uniform(-shift, shift)] for lat, lon in base]
+        assert R._different_enough(base, other) == brute(base, other)
