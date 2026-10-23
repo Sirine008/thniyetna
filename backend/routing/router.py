@@ -88,6 +88,8 @@ def _segment_risk(db,line):
     return round(min(1.0,.72*peak+.28*mean),3),len(rows)
 
 HAZARD_RADIUS_M=105
+REROUTE_MIN_RISK=.42   # the fastest route needs a new route above this risk
+REROUTE_MIN_GAIN=.12   # an alternative must be at least this much safer
 # True distance (geography, metres) from each hazard to the whole route LineString. Measuring to route
 # vertices missed hazards lying between two far-apart vertices (OSRM puts few on straight roads).
 _HAZARD_DISTANCE_SQL=text("""
@@ -121,26 +123,35 @@ def _hazard_distances(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
     for i,h in enumerate(hazards):
         lat,lon=float(h["lat"]),float(h["lon"])
         d=min(_point_segment_m(lat,lon,line[j],line[j+1]) for j in range(len(line)-1))
-        if d<radius_m:out[i]=d
+        if d<=radius_m:out[i]=d
     return out
 
-def _route_exposure(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
-    """Risk is based on actual distance between a candidate geometry and hazards."""
-    if not hazards or not line:return 0.0,0
-    exposure=[]
-    for i,d in _hazard_distances(line,hazards,db,radius_m).items():
-        h=hazards[i]
-        if d<radius_m:
-            # Stronger penalty near the pothole, fading to zero at radius_m.
-            exposure.append(float(h.get("risk") or .5)*(1-d/radius_m))
-    if not exposure:return 0.0,0
+def _exposure(h,d,radius_m=HAZARD_RADIUS_M):
+    # Stronger penalty near the pothole, fading to zero at radius_m.
+    return float(h.get("risk") or .5)*(1-d/radius_m)
+
+def _exposure_risk(exposure):
     # Blend peak danger and cumulative exposure; clamp to [0,1].
-    risk=min(1.0,.72*max(exposure)+.28*min(1.0,sum(exposure)/2.0))
-    return round(risk,3),len(exposure)
+    if not exposure:return 0.0
+    return round(min(1.0,.72*max(exposure)+.28*min(1.0,sum(exposure)/2.0)),3)
+
+def _route_exposure(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
+    """(risk, {hazard index: distance m}) from the actual distance between a candidate and the hazards."""
+    if not hazards or not line:return 0.0,{}
+    near=_hazard_distances(line,hazards,db,radius_m)
+    return _exposure_risk([_exposure(hazards[i],d,radius_m) for i,d in near.items()]),near
+
+def _triggering_hazards(hazards,near):
+    """Hazards that make the fastest route exceed REROUTE_MIN_RISK: each one that does so on its own;
+    if none does alone (only their accumulation does), all hazards on the route. Order-independent."""
+    exp={i:_exposure(hazards[i],d) for i,d in near.items()}
+    alone={i for i,e in exp.items() if _exposure_risk([e])>=REROUTE_MIN_RISK}
+    if alone:return alone
+    return set(exp) if _exposure_risk(list(exp.values()))>=REROUTE_MIN_RISK else set()
 
 def _candidate(route,hazards,db=None):
     line=_line(route)
-    hazard_risk,count=_route_exposure(line,hazards,db)
+    hazard_risk,near=_route_exposure(line,hazards,db)
     segment_risk,segments=_segment_risk(db,line)
     # max() rather than a probabilistic sum: a segment holding an M1 event already
     # carries that event in its M2 score, so adding both would count it twice.
@@ -148,7 +159,7 @@ def _candidate(route,hazards,db=None):
     distance=float(route["distance"]); duration=float(route["duration"])
     score=round(duration/60 + distance/1000*.32 + risk*22,3)
     return RouteCandidate(distance_m=distance,duration_s=duration,risk=risk,score=score,polyline=line,
-                          hazard_risk=hazard_risk,segment_risk=segment_risk,scored_segments=segments),count
+                          hazard_risk=hazard_risk,segment_risk=segment_risk,scored_segments=segments),near
 
 def _detour_routes(req):
     """Ask OSRM for road-following corridors on both sides of the direct route.
@@ -187,39 +198,43 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
 
     hazards=_risk_points(db)
     fastest_route=min(routes,key=lambda r:r["duration"])
-    fastest,fast_count=_candidate(fastest_route,hazards,db)
+    fastest,fast_near=_candidate(fastest_route,hazards,db)
+    # An alternative must stay > HAZARD_RADIUS_M from every hazard that made the fastest route risky.
+    trigger=_triggering_hazards(hazards,fast_near) if fastest.hazard_risk>=REROUTE_MIN_RISK else set()
 
     pool=[]
     for route in routes:
-        candidate,count=_candidate(route,hazards,db)
-        pool.append((candidate,count))
+        candidate,near=_candidate(route,hazards,db)
+        pool.append((candidate,near))
 
     # If the fastest route is exposed to a meaningful road risk, search additional
     # road-following corridors. This preserves the next-best-route behaviour while
     # using only real RoadEvents / validated citizen reports from PostgreSQL.
     # (M2 segment risk can trigger this too, even with no point hazard nearby.)
-    if fastest.risk >= .42:
+    if fastest.risk >= REROUTE_MIN_RISK:
         for route in _detour_routes(req):
-            candidate,count=_candidate(route,hazards,db)
+            candidate,near=_candidate(route,hazards,db)
             if _different_enough(fastest.polyline,candidate.polyline):
-                pool.append((candidate,count))
+                pool.append((candidate,near))
 
     # Deduplicate geometrically equivalent candidates, then rank by the composite
     # time + distance + risk cost.
     unique=[]
-    for candidate,count in sorted(pool,key=lambda x:x[0].score):
+    for candidate,near in sorted(pool,key=lambda x:x[0].score):
         if not any(not _different_enough(candidate.polyline,existing.polyline) for existing,_ in unique):
-            unique.append((candidate,count))
+            unique.append((candidate,near))
 
     safer_pair=next((
-        (candidate,count) for candidate,count in unique
+        (candidate,near) for candidate,near in unique
         if candidate.polyline != fastest.polyline
         and _different_enough(fastest.polyline,candidate.polyline)
-        and candidate.risk + .12 < fastest.risk
+        and not (trigger & near.keys())  # eligible: avoids every triggering hazard
+        and candidate.risk + REROUTE_MIN_GAIN < fastest.risk
     ),None)
 
-    reroute=safer_pair is not None and fastest.risk >= .42
-    best,best_count=safer_pair if reroute else (fastest,fast_count)
+    reroute=safer_pair is not None and fastest.risk >= REROUTE_MIN_RISK
+    best,best_near=safer_pair if reroute else (fastest,fast_near)
+    fast_count,best_count=len(fast_near),len(best_near)
     if reroute and fastest.segment_risk > fastest.hazard_risk:
         reason=(
             f"Le trajet initial emprunte des segments à risque M2 élevé ({fastest.segment_risk:.0%}) ; "

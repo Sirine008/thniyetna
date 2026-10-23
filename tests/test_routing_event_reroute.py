@@ -55,6 +55,11 @@ DRIVER = {"sub": "demo.driver1", "role": "bus_driver"}
 
 
 def min_distance_m(line, point):
+    """True distance from the point to the polyline (not to its vertices)."""
+    return min(R._point_segment_m(point["lat"], point["lon"], line[i], line[i + 1]) for i in range(len(line) - 1))
+
+
+def min_vertex_distance_m(line, point):
     return min(haversine_m(p[0], p[1], point["lat"], point["lon"]) for p in line)
 
 
@@ -87,7 +92,7 @@ def test_alternative_crossing_the_event_between_sparse_vertices_is_not_safer(m3)
     # straight stretch 9.855 -> 9.875 with no vertex near the event at 9.865 (~890 m each side)
     sparse = [[37.270, 9.850], [37.285, 9.850], [37.285, 9.855], [37.270, 9.855],
               [37.270, 9.875], [37.285, 9.875], [37.285, 9.880], [37.270, 9.880]]
-    assert min_distance_m(sparse, EVENT) > 105  # what vertex sampling sees, although the line passes 0 m away
+    assert min_vertex_distance_m(sparse, EVENT) > 105  # what vertex sampling sees, although the line passes 0 m away
     published = m3([EVENT], [osrm(DIRECT, 300), osrm(sparse, 480)])
     res = R.driver_next_best(REQ, FakeDB(), DRIVER)
     assert not res.reroute_needed and published == []
@@ -100,3 +105,27 @@ def test_hazard_distance_is_measured_to_the_route_line_in_postgis():
     line = [[37.270, 9.855], [37.270, 9.875]]
     assert R._hazard_distances(line, [EVENT]) == {0: pytest.approx(0.0, abs=0.5)}
     assert R._hazard_distances(line, [{**EVENT, "lat": 37.2715}]) == {}  # ~166 m north: outside 105 m
+
+
+def test_alternative_must_avoid_every_triggering_hazard(m3):
+    # two 0.9 events on the fastest route; ALT avoids the second one but still crosses EVENT.
+    # Overall ALT is 0.12 safer (0.774 vs 0.9) — the old rule rerouted onto it.
+    second = {**EVENT, "lon": 9.875}
+    alt = [[37.270, 9.850], [37.270, 9.869], [37.280, 9.869], [37.280, 9.880], [37.270, 9.880]]
+    published = m3([EVENT, second], [osrm(DIRECT, 300), osrm(alt, 420)], detours=[osrm(alt, 420)])
+    res = R.get_route(REQ, None)
+    alt_candidate = next(c for c in res.alternatives if c.polyline == alt)
+    assert alt_candidate.risk + R.REROUTE_MIN_GAIN < res.fastest_risk      # safer overall …
+    assert min_distance_m(alt, EVENT) < 105                                 # … but crosses a triggering hazard
+    assert not res.reroute_needed and res.polyline == DIRECT
+    assert published == []
+
+
+def test_triggering_hazards_are_each_hazard_that_alone_exceeds_042_else_all():
+    strong, weak = {"risk": 0.9}, {"risk": 0.3}
+    assert R._triggering_hazards([strong, weak], {0: 0.0, 1: 0.0}) == {0}       # the weak one is not needed
+    assert R._triggering_hazards([strong, strong], {0: 0.0, 1: 20.0}) == {0, 1}  # order-independent
+    many = [{"risk": 0.4}] * 6                                                   # 0.344 alone, 0.568 together
+    assert R._exposure_risk([0.4]) < R.REROUTE_MIN_RISK
+    assert R._triggering_hazards(many, {i: 0.0 for i in range(6)}) == set(range(6))
+    assert R._triggering_hazards([weak], {0: 0.0}) == set()                      # below 0.42: nothing triggers
