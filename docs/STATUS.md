@@ -57,7 +57,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | Modèle chargé par l'API | ✅ | `GET /prediction/model` → `status ok`, version `2026.10.11-2054`, classifieur `logreg` | — |
 | Prévisions par gouvernorat | ✅ | `GET /prediction/governorates` → 192 lignes nommées, 24 gouvernorats, 8 jours (15→22/10), 116 alertes | Vérifier si ce taux d'alerte élevé est utile en pratique |
 | Score de risque par segment (RiskScore 1.1.0) | ✅ | *(23/10)* 675 segments ; OSM-100663969 : 0,1837 → **0,3940 (medium)** après l'événement M1 validé (composante état 0,2576, facteur principal `m1:road_condition`) ; les 674 autres `low` | Un risque absolu plus contrasté demande plus d'événements M1 |
-| Priorités d'entretien | ✅ | *(23/10)* 1 P2 « poor » (OSM-100663969), 270 P3, 404 P4 | — |
+| Priorités d'entretien | ✅ | *(23/10, démo rééquilibrée)* 4 P2, 267 P3, 404 P4 ; 3 segments `medium` (dont OSM-125567491, porteur des 2 événements de démo de L1, 0,344) | — |
 | Prise en compte des événements du jour | ✅ | *(23/10)* Corrigé : `score.py` coupait les événements à minuit, donc un événement du jour n'était compté qu'au passage du lendemain. Maintenant, la limite est l'heure du calcul (`segment_cutoff`), et `--as-of` garde minuit. Test `test_same_day_m1_event_counts_in_todays_pass` ; image `m2-worker` reconstruite | — |
 | Worker M2 (passe de scoring) | ✅ | `m2-worker` démarré ; scores créés le 15/10 12:36 UTC, valables jusqu'au 16/10 | — |
 | Données d'entraînement | ✅ | Base : `accident_records` ≈ 69 394, `weather_observations` ≈ 1 652, 24 `admin_areas` | L'export accidents s'arrête au 27/09/2026 (`docs/M2_MODEL_CARD.md`) |
@@ -71,9 +71,9 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | Fonctionnalité | Statut | Preuve | Ce qui reste |
 |---|---|---|---|
 | Calcul d'itinéraire OSRM (Bizerte) | ✅ | *(23/10)* Graphe reconstruit pour tout TN-23 (`scripts/osm-clip-bizerte.sh`) : Bizerte → Menzel Bourguiba 23,6 km, Mateur 40,5 km, Ras Jebel 36,6 km, Zarzouna 3,1 km (avant : île séparée / hors graphe) | OSRM ne renvoie aucune alternative native sur ces trajets : toutes viennent de la recherche de détours de M3 |
-| Coût tenant compte du risque + déviation | ✅ | *(23/10)* Règle corrigée (D-001) : distance vraie PostGIS, alternative éligible seulement si elle évite à > 105 m chaque danger déclencheur, détours cherchés autour des dangers ; seuils 0,42 / 0,12 inchangés. `tests/test_routing_event_reroute.py` 9 + `test_routing_m2_risk.py` 5 réussis (image `api`). Test d'isolement : déviation de 28,2 km à 1 397 m du danger (0,774 → 0,193) | Données de démo : corridor RN11 trop chargé, donc avertissements plutôt que déviations |
+| Coût tenant compte du risque + déviation | ✅ | *(23/10)* Règle corrigée (D-001) : distance vraie PostGIS, alternative éligible seulement si elle évite à > 105 m chaque danger déclencheur, détours cherchés autour des dangers ; seuils 0,42 / 0,12 inchangés. `tests/test_routing_event_reroute.py` 15 + `test_routing_m2_risk.py` 5 réussis (image `api`). Démo : L1 dévie (0,726 → 0,024, 28,2 km, danger le plus proche à 362 m) | L1 et L2 partagent RN11 : un danger contournable sur L1 est aussi sur L2 |
 | Lignes officielles et affectations | 🟡 | *(23/10)* 4 lignes de démo `DEMO-L1…L4` et leurs affectations, créées par l'API (`scripts/seed_demo.py`) | Lignes réelles SRTB |
-| Alerte conducteur (déviation / avertissement) | ✅ | *(23/10)* Les 4 lignes de démo : `driver.route.warning` « Danger sur l'itinéraire — aucune alternative sûre » avec la liste des dangers (risque 0,70–0,80, 2 à 12 dangers sur le trajet). L'ancienne alerte L2 (logique m3-v1, alternative passant à 0 m de 12 dangers) est conservée, marquée `superseded`. Pages `/driver` et `/driver/alerts` vérifiées en navigateur headless | Temps de réponse 0,2–4,5 s par contrôle de ligne |
+| Alerte conducteur (déviation / avertissement) | ✅ | *(23/10, démo rééquilibrée)* Calculé par M3 : L1 `driver.reroute.alert` (« 2 danger(s) sur le trajet initial, 0 sur l'alternative ; risque 73 % → 2 % »), L2 `driver.route.warning` (3 dangers, risque 80 %, aucune alternative éligible), L3 / L4 aucune alerte (risque 14 % / 0 %). Une seule alerte active par conducteur et ligne : un nouveau contrôle identique la rafraîchit (« Confirmée n× »), vérifié en direct et en navigateur headless (`/driver`, `/driver/alerts`) | Temps de réponse 0,02–1,7 s par contrôle de ligne |
 | Géocodage | ✅ | `GET /routing/geocode?q=Corniche` → 2 résultats (Nominatim public, nécessite Internet) | — |
 
 ### M4 — Plateforme web
@@ -153,7 +153,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | 2 | Valider le jeu de questions RAG et les étiquettes manuelles (Sirine) | S | Non |
 | 3 | Corriger l'heuristique des titres, relancer `rag.ingest --contexts`, puis évaluer `fts_french` → `chunk_context` → `confidence_gate` → `numbers_rule` (+ `combined_gemma4` si la RAM le permet) | M | Non |
 | 4 | Recette manuelle des écrans dans un navigateur (citoyen, conducteur, deux superviseurs, Assistant, impression de la fiche) | S | Non |
-| 5 | *(23/10 : lignes de démo + règle M3 corrigée)* Saisir les vraies lignes SRTB ; démontrer une déviation sur une ligne dont le corridor a une route de contournement | S | Non |
+| 5 | *(23/10 : démo L1 déviation / L2 avertissement / L3-L4 normal)* Saisir les vraies lignes SRTB | S | Non |
 | 6 | *(23/10 : boucle démontrée sur 1 segment, P2 + fiche avec défaut)* Accumuler des événements validés, puis entraîner le modèle d'état « mode B » (≥ 50 positifs) | M | Non |
 | 7 | Faire tourner les tests FastAPI dans la CI / l'image de test et vérifier les exécutions GitHub | S | Petit téléchargement (pytest) |
 | 8 | Réactiver un calque de risque lisible sur la carte | S | Non |

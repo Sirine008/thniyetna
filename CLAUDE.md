@@ -83,7 +83,10 @@ history carries the signal · trees do not beat logistic regression · accident 
   - seed (idempotent): `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py`
   - reset (lists demo rows, asks `yes`, deletes only them + their media, then one normal M2 pass):
     `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py --reset`
-  - `--summary` prints the DB summary; `--recheck` reruns the M3 route checks; `--rescore` forces the M2 pass.
+  - `--summary` prints the DB summary; `--rescore` forces the M2 pass. Route checks always run (the API keeps one
+    active alert per driver and line, so re-running does not duplicate alerts).
+  - Layout (23/10): L1 -> reroute (2 hazards on OSM-125567491, which has a road around it), L2 -> warning (own hazard on
+    OSM-116022841, no road around; L2 also passes L1's stretch), L3/L4 -> no hazard; reports >= 2 km from every line.
 - Everything goes through the API (OSRM lines, M1 worker, validation, `/routing/driver/next-best`) and the normal
   M2 job; the script only adds the demo tag and, on reset, deletes demo rows. Never insert scores/routes/alerts by hand.
 - Demo rows: usernames `demo.*`; `metadata.demo` / `payload.demo` / `options.demo` = true elsewhere. The API exposes

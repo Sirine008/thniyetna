@@ -51,7 +51,8 @@ Les seuils ne changent pas : déviation si le risque du trajet le plus rapide es
 
 - Avec les données de démo (24 dangers, dont 10 à 12 le long de RN11), **les 4 lignes passent en avertissement** :
   aucune alternative n'évite tous les dangers déclencheurs. L'ancienne déviation de la ligne 2 passait elle-même à
-  0 m de 12 dangers ; elle est conservée en base, marquée `superseded` / `logic_version = "m3-v1"`.
+  0 m de 12 dangers ; elle a d'abord été conservée, marquée `superseded` / `logic_version = "m3-v1"`, puis
+  supprimée avec les autres lignes de démo lors du rééquilibrage de la démo (23/10, `seed_demo.py --reset`).
 - Test d'isolement (code réel, OSRM et PostGIS réels, seul un danger de 0,9 sur OSM-125567491) : déviation
   par un itinéraire de 28,2 km qui passe à 1 397 m du danger (risque 0,774 → 0,193). La recherche « milieu seul »
   ne trouvait aucune alternative.
@@ -65,3 +66,7 @@ Les seuils ne changent pas : déviation si le risque du trajet le plus rapide es
   pas d'itinéraire « plus sûr » qui traverse le même danger.
 - Au plus 6 groupes de dangers explorés par requête.
 - Le risque M2 des segments reste calculé sur une version échantillonnée de l'itinéraire (≤ 300 points).
+- Une seule alerte active par conducteur et par ligne (bus + destination) : même décision et mêmes dangers
+  déclencheurs → l'alerte existante est rafraîchie (`last_confirmed_at`, `confirmations`) sans changer `created_at`
+  (sinon le flux SSE la renverrait comme nouvelle) ; décision ou dangers différents → nouvelle alerte, l'ancienne est
+  marquée `superseded` ; retour à un itinéraire normal → l'alerte active est close (commit `53172d4`).

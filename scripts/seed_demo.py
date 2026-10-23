@@ -79,36 +79,38 @@ CHAIN = {"open": [], "under_review": ["under_review"], "validated": ["under_revi
          "resolved": ["under_review", "validated", "planned", "resolved"],
          "rejected": ["under_review", "rejected"]}
 
-# key, line, target fraction along the line, photo, citizen, final status, description
+# Layout chosen so that M3 shows every behaviour (planned with a read-only dry run of the real M3 code,
+# 23/10): L1 -> reroute (2 hazards on OSM-125567491, a stretch with a road around it), L2 -> warning
+# (its own hazard on OSM-116022841, no road around; L2 also passes L1's stretch), L3/L4 -> no hazard.
+# Citizen reports are >= 2 km from every line and from L1's detour, so they are not hazards on a route.
+
+# key, zone (segment), (lat, lon), photo, citizen, final status, description
 COMPLAINTS = [
-    ("C01", "DEMO-L1", 0.25, "road2.jpg", "demo.citizen1", "open", "Nid-de-poule rempli d'eau sur la voie de droite"),
-    ("C02", "DEMO-L1", 0.40, "road3.jpg", "demo.citizen2", "validated", "Grand nid-de-poule et chaussée faïencée"),
-    ("C03", "DEMO-L1", 0.70, "road6.jpg", "demo.citizen3", "planned", "Trous comblés au gravier, chaussée instable"),
-    ("C04", "DEMO-L1", 0.85, "road5.jpg", "demo.citizen4", "resolved", "Deux nids-de-poule près de l'accotement"),
-    ("C05", "DEMO-L2", 0.20, "road4.jpg", "demo.citizen5", "under_review", "Nid-de-poule profond après la pluie"),
-    ("C06", "DEMO-L2", 0.40, "road8.jpg", "demo.citizen1", "validated", "Longue fissure sur la chaussée"),
-    ("C07", "DEMO-L2", 0.65, "road7.jpg", "demo.citizen2", "open", "Série de nids-de-poule sur plusieurs mètres"),
-    ("C08", "DEMO-L2", 0.80, "road13.jpg", "demo.citizen3", "rejected", "Revêtement abîmé à l'entrée"),
-    ("C09", "DEMO-L3", 0.20, "road11.jpg", "demo.citizen4", "under_review", "Nid-de-poule au milieu de la voie"),
-    ("C10", "DEMO-L3", 0.45, "road1.jpg", "demo.citizen5", "planned", "Chaussée fissurée en surface"),
-    ("C11", "DEMO-L3", 0.70, "road9.jpg", "demo.citizen1", "under_review", "Fissure transversale signalée"),
-    ("C12", "DEMO-L3", 0.90, "road12.jpg", "demo.citizen2", "rejected", "Revêtement dégradé"),
-    ("C13", "DEMO-L4", 0.30, "road2.jpg", "demo.citizen3", "resolved", "Nid-de-poule avec dalles soulevées"),
-    ("C14", "DEMO-L4", 0.55, "road4.jpg", "demo.citizen4", "open", "Nid-de-poule à l'approche du pont"),
-    ("C15", "DEMO-L4", 0.80, "road6.jpg", "demo.citizen5", "validated", "Rebouchage provisoire déjà dégradé"),
+    ("C01", "OSM-116163076", (37.082537, 9.532278), "road2.jpg", "demo.citizen1", "open", "Nid-de-poule rempli d'eau sur la voie de droite"),
+    ("C02", "OSM-713546524", (37.052364, 10.025717), "road3.jpg", "demo.citizen2", "validated", "Grand nid-de-poule et chaussée faïencée"),
+    ("C03", "OSM-95691254", (37.157443, 9.560299), "road6.jpg", "demo.citizen3", "planned", "Trous comblés au gravier, chaussée instable"),
+    ("C04", "OSM-1070994345", (37.068087, 9.127443), "road5.jpg", "demo.citizen4", "resolved", "Deux nids-de-poule près de l'accotement"),
+    ("C05", "OSM-129852079", (37.057412, 9.239662), "road4.jpg", "demo.citizen5", "under_review", "Nid-de-poule profond après la pluie"),
+    ("C06", "OSM-715353710", (37.112943, 9.542364), "road8.jpg", "demo.citizen1", "validated", "Longue fissure sur la chaussée"),
+    ("C07", "OSM-26279433", (36.983048, 9.984389), "road7.jpg", "demo.citizen2", "open", "Série de nids-de-poule sur plusieurs mètres"),
+    ("C08", "OSM-97885218", (37.256674, 10.069247), "road13.jpg", "demo.citizen3", "rejected", "Revêtement abîmé à l'entrée"),
+    ("C09", "OSM-130029789", (36.881948, 9.515473), "road11.jpg", "demo.citizen4", "under_review", "Nid-de-poule au milieu de la voie"),
+    ("C10", "OSM-180946887", (37.029631, 10.042744), "road1.jpg", "demo.citizen5", "planned", "Chaussée fissurée en surface"),
+    ("C11", "OSM-128202942", (36.947499, 9.474074), "road9.jpg", "demo.citizen1", "under_review", "Fissure transversale signalée"),
+    ("C12", "OSM-39124288", (37.127652, 10.055849), "road12.jpg", "demo.citizen2", "rejected", "Revêtement dégradé"),
+    ("C13", "OSM-57375753", (37.122417, 9.797087), "road2.jpg", "demo.citizen3", "resolved", "Nid-de-poule avec dalles soulevées"),
+    ("C14", "OSM-171858432", (37.067820, 10.008449), "road4.jpg", "demo.citizen4", "open", "Nid-de-poule sur la chaussée"),
+    ("C15", "OSM-40671551", (37.066210, 10.070819), "road6.jpg", "demo.citizen5", "validated", "Rebouchage provisoire déjà dégradé"),
 ]
-# Inspection-vehicle uploads (M1 image jobs) on lines 1 and 2, so the M3 rule has hazards to avoid.
-INSPECTIONS = [  # key, line, fraction, photo
-    ("E01", "DEMO-L1", 0.50, "road3.jpg"),
-    ("E02", "DEMO-L1", 0.60, "road8.jpg"),
-    ("E03", "DEMO-L2", 0.50, "road3.jpg"),
-    ("E04", "DEMO-L2", 0.58, "road1.jpg"),
+# Inspection-vehicle uploads (M1 image jobs): the only hazards on the demo lines.
+INSPECTIONS = [  # key, line, (lat, lon), photo
+    ("E01", "DEMO-L1", (37.253801, 9.796066), "road3.jpg"),
+    ("E02", "DEMO-L1", (37.254563, 9.799057), "road3.jpg"),
+    ("E03", "DEMO-L2", (37.156880, 9.766425), "road3.jpg"),
 ]
 # events validated by equipment.supervisor (about half), by the item that produced them
 VALIDATE = {"C02", "C06", "E01", "E03"}
 
-PLACEMENT_SPACING_M = 300   # between two demo points of a line
-END_MARGIN_M = 400          # keep away from the line ends (town centres)
 NON_DEMO_CLEARANCE_M = 150  # never near a real event/report: the worker would merge observations
 
 
@@ -388,57 +390,29 @@ class Seeder:
             self.count("route_assignments")
         say("assignments: " + ", ".join(f"{c}→{b}→{d}" for c, _, _, b, d in LINES))
 
-    # -- placement on real segments along a line
-    def candidates(self, code):
-        rows = self.q("""
-          WITH r AS (SELECT ST_LineMerge(geom) g, ST_Length(geom::geography) len FROM official_routes WHERE route_code=%s),
-          pts AS (SELECT (ST_DumpPoints(ST_LineInterpolatePoints(r.g, LEAST(1.0, 25.0 / r.len)))).geom p, r.len FROM r)
-          SELECT ST_Y(p), ST_X(p), ST_LineLocatePoint((SELECT g FROM r), p) frac, len, s.segment_code, s.d
-          FROM pts CROSS JOIN LATERAL (
-            SELECT segment_code, ST_Distance(geom::geography, p::geography) d FROM road_segments
-            WHERE road_class IN ('motorway','trunk','primary','secondary') ORDER BY geom <-> p LIMIT 1) s
-          WHERE s.d <= 12
-            AND NOT EXISTS (SELECT 1 FROM road_events e
-                            WHERE NOT coalesce((e.payload->>'demo')::boolean,false)
-                              AND ST_DWithin(e.geom::geography, p::geography, %s))
-            AND NOT EXISTS (SELECT 1 FROM complaints c
-                            WHERE NOT coalesce((c.payload->>'demo')::boolean,false) AND c.actor_ref NOT LIKE 'demo.%%'
-                              AND ST_DWithin(c.geom::geography, p::geography, %s))
-          ORDER BY frac""", code, NON_DEMO_CLEARANCE_M, NON_DEMO_CLEARANCE_M)
-        return [r for r in rows if END_MARGIN_M <= r[2] * r[3] <= r[3] - END_MARGIN_M]
-
-    def place(self, items):
-        """items: (key, line, fraction). Nearest candidate to the target fraction, spaced along the line."""
-        placed, by_line = {}, {}
-        for key, line, frac in items:
-            cands = by_line.setdefault(line, self.candidates(line))
-            used = [p for k, p in placed.items() if p[4] == line]
-            ok = [c for c in cands if all(abs(c[2] - u[2]) * c[3] >= PLACEMENT_SPACING_M for u in used)]
-            if not ok:
-                raise SystemExit(f"no free point on {line} for {key}")
-            best = min(ok, key=lambda c: abs(c[2] - frac))
-            placed[key] = (best[0], best[1], best[2], best[5], line, best[4])
-        return placed
-
-    def existing_points(self):
-        """demo_key -> (lat, lon) of items already created (keeps re-runs stable)."""
-        out = {}
-        for key, lat, lon in self.q("""SELECT payload->>'demo_key', ST_Y(geom), ST_X(geom) FROM complaints
-                                       WHERE payload->>'demo_key' IS NOT NULL"""):
-            out[key] = (lat, lon)
-        for key, lat, lon in self.q("""SELECT options->>'demo_key', (options->>'latitude')::float,
-                                              (options->>'longitude')::float FROM perception_jobs
-                                       WHERE options->>'demo_key' IS NOT NULL"""):
-            out[key] = (lat, lon)
-        return out
+    # -- positions: checked against the real network before anything is created
+    def check_positions(self):
+        for key, _, (lat, lon), *_ in COMPLAINTS + INSPECTIONS:
+            inside, seg_d, near_real = self.q("""
+              WITH p AS (SELECT ST_SetSRID(ST_MakePoint(%s,%s),4326) g)
+              SELECT (SELECT ST_Contains(geom,p.g) FROM admin_areas WHERE code=%s),
+                     (SELECT min(ST_Distance(s.geom::geography,p.g::geography)) FROM road_segments s
+                      WHERE s.road_class IN ('trunk','primary','secondary') AND ST_DWithin(s.geom::geography,p.g::geography,50)),
+                     EXISTS (SELECT 1 FROM road_events e WHERE NOT coalesce((e.payload->>'demo')::boolean,false)
+                               AND ST_DWithin(e.geom::geography,p.g::geography,%s))
+                     OR EXISTS (SELECT 1 FROM complaints c WHERE NOT coalesce((c.payload->>'demo')::boolean,false)
+                               AND c.actor_ref NOT LIKE 'demo.%%' AND ST_DWithin(c.geom::geography,p.g::geography,%s))
+              FROM p""", lon, lat, GOV_CODE, NON_DEMO_CLEARANCE_M, NON_DEMO_CLEARANCE_M)[0]
+            if not inside or seg_d is None or seg_d > 12 or near_real:
+                raise SystemExit(f"{key} at {lat},{lon}: inside {GOV_CODE}={inside}, segment {seg_d} m, "
+                                 f"near non-demo data={near_real}")
 
     # -- reports + M1
-    def complaints_step(self, placed):
+    def complaints_step(self):
         jobs = []
-        for key, line, _, photo, citizen, _, descr in COMPLAINTS:
+        for key, zone, (lat, lon), photo, citizen, _, descr in COMPLAINTS:
             if self.q1("SELECT 1 FROM complaints WHERE payload->>'demo_key'=%s", key):
                 continue
-            lat, lon = placed[key][:2]
             token = self.api.tokens[citizen]
             media = self.api.upload(token, PHOTOS / photo)
             st, c = self.api.call("POST", "/platform/complaints", token, body={
@@ -447,24 +421,23 @@ class Seeder:
             if st != 200:
                 raise SystemExit(f"complaint {key}: {st} {c}")
             self.cx.execute(tag_sql("complaints", "payload"),
-                            (json.dumps({**TAG, "demo_key": key, "demo_line": line, "demo_photo": photo}), [c["id"]]))
+                            (json.dumps({**TAG, "demo_key": key, "demo_zone": zone, "demo_photo": photo}), [c["id"]]))
             job = self.q1("SELECT id::text FROM perception_jobs WHERE options->>'complaint_id'=%s", c["id"])
             if job:
                 self.cx.execute(tag_sql("perception_jobs", "options"),
-                                (json.dumps({**TAG, "demo_key": key, "demo_line": line}), [job]))
+                                (json.dumps({**TAG, "demo_key": key, "demo_zone": zone}), [job]))
                 jobs.append(job)
             self.count("complaints")
             self.count("perception_jobs", 1 if job else 0)
         say(f"citizen reports: {len(COMPLAINTS)} defined, {self.created.get('complaints', 0)} created this run")
         return jobs
 
-    def inspections_step(self, placed):
+    def inspections_step(self):
         token = self.api.tokens[INSPECTOR]
         jobs = []
-        for key, line, _, photo in INSPECTIONS:
+        for key, line, (lat, lon), photo in INSPECTIONS:
             if self.q1("SELECT 1 FROM perception_jobs WHERE options->>'demo_key'=%s", key):
                 continue
-            lat, lon = placed[key][:2]
             media = self.api.upload(token, PHOTOS / photo)
             st, job = self.api.call("POST", "/perception/jobs", token, body={
                 "job_type": "image", "storage_key": media["storage_key"], "media_uri": media["media_uri"],
@@ -546,25 +519,18 @@ class Seeder:
         say("  " + out.stdout.strip().splitlines()[-1])
 
     def route_checks(self):
-        say("M3 route checks (POST /routing/driver/next-best as each driver):")
+        say("M3 route checks (POST /routing/driver/next-best as each driver; alerts deduplicated by the API):")
         for code, start, end, bus, driver in LINES:
-            had = self.q1("""SELECT count(*) FROM notification_outbox
-                             WHERE topic IN ('driver.reroute.alert','driver.route.warning') AND recipient_ref=%s
-                               AND NOT coalesce((payload->>'superseded')::boolean,false)""", driver)
-            if had and not self.args.recheck:
-                say(f"  {code}: {driver} already has {had} alert(s), skipped (--recheck to run again)")
-                continue
             a, b = PLACES[start], PLACES[end]
             st, res = self.api.call("POST", "/routing/driver/next-best", self.api.tokens[driver], body={
                 "vehicle_id": bus, "current_lat": a[0], "current_lon": a[1],
                 "destination_lat": b[0], "destination_lon": b[1], "alternatives": 3})
             if st != 200:
                 raise SystemExit(f"route check {code}: {st} {res}")
-            say(f"  {code}: {res['status']} (initial risk {res['fastest_risk']:.2f}, best {res['risk']:.2f}) — {res['reason']}")
-            if res["reroute_needed"]:
-                self.count("notification_outbox (driver.reroute.alert)")
-            elif res.get("warning"):
-                self.count("notification_outbox (driver.route.warning)")
+            say(f"  {code}: {res['status']} (initial risk {res['fastest_risk']:.3f}, chosen {res['risk']:.3f}; "
+                f"alert {res.get('alert_state')}) — {res['reason']}")
+            if res.get("alert_state") == "new":
+                self.count(f"notification_outbox ({'driver.reroute.alert' if res['reroute_needed'] else 'driver.route.warning'})")
 
     def run(self):
         self.preflight()
@@ -573,10 +539,8 @@ class Seeder:
         self.lines_step()
         self.assignments_step()
         self.cx.commit()
-        known = self.existing_points()
-        todo = [(k, line, frac) for k, line, frac, *_ in COMPLAINTS + INSPECTIONS if k not in known]
-        placed = self.place(todo) if todo else {}
-        jobs = self.complaints_step(placed) + self.inspections_step(placed)
+        self.check_positions()
+        jobs = self.complaints_step() + self.inspections_step()
         self.cx.commit()
         self.wait_jobs(jobs)
         self.tag_m1_outputs()
@@ -686,7 +650,6 @@ def main():
     ap.add_argument("--yes", action="store_true", help="with --reset: do not ask")
     ap.add_argument("--no-score", action="store_true", help="with --reset: skip the M2 scoring pass")
     ap.add_argument("--rescore", action="store_true", help="run the M2 pass even if nothing changed")
-    ap.add_argument("--recheck", action="store_true", help="run the M3 route checks even if alerts exist")
     ap.add_argument("--summary", action="store_true", help="print the database summary only")
     ap.add_argument("--api", default=f"http://localhost:{ENV.get('API_PORT', '8000')}")
     args = ap.parse_args()
