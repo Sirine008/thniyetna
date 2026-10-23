@@ -33,6 +33,21 @@ MIN_POSITIVES = 50          # quality gate: below this the prior is kept
 MIN_PR_AUC_GAIN = 0.02      # the learned model must beat the prior on the test period
 ROAD_CLASSES = ["motorway", "national", "regional", "local", "urban"]
 
+# Demo rows (scripts/seed_demo.py) carry payload.demo = true. They feed the live scoring, so the demo
+# shows real M2 output, but never a training set: excluded in SQL here and again in build_panel.
+TRAINING_EVENTS_SQL = """SELECT segment_id::text segment_id, severity, confidence, observed_at, status,
+                                status IN ('validated','confirmed','in_progress','scheduled') validated
+                         FROM road_events
+                         WHERE segment_id IS NOT NULL AND NOT coalesce((payload->>'demo')::boolean, false)"""
+
+
+def drop_demo(events: pd.DataFrame) -> pd.DataFrame:
+    """Remove demo events (column `demo` truthy) from a training input; no-op without the column."""
+    if "demo" not in events.columns:
+        return events
+    demo = events["demo"].map(lambda v: str(v).strip().lower() in {"true", "1", "yes"})
+    return events[~demo].drop(columns="demo")
+
 
 def _features(segments: pd.DataFrame, ev: pd.DataFrame, r: pd.Timestamp, rain30: float) -> pd.DataFrame:
     past = ev[ev["observed_at"] <= r]
@@ -59,7 +74,7 @@ def _features(segments: pd.DataFrame, ev: pd.DataFrame, r: pd.Timestamp, rain30:
 def build_panel(segments: pd.DataFrame, events: pd.DataFrame, rain: pd.Series | None = None,
                 horizon_days: int | None = None, step_days: int = 14) -> pd.DataFrame:
     H = horizon_days or SEGMENT.horizon_days
-    ev = events.copy()
+    ev = drop_demo(events).copy()
     ev["observed_at"] = pd.to_datetime(ev["observed_at"], utc=True).dt.tz_localize(None)
     ev["validated"] = ev.get("validated", False)
     ev["validated"] = ev["validated"].fillna(False).astype(bool)
@@ -160,9 +175,7 @@ def main(argv=None):
         src = DbSource()
         segs = src.segments()
         import sqlalchemy as sa
-        ev = pd.read_sql(sa.text("""SELECT segment_id::text segment_id, severity, confidence, observed_at, status,
-                                    status IN ('validated','confirmed','in_progress','scheduled') validated
-                                    FROM road_events WHERE segment_id IS NOT NULL"""), src.engine)
+        ev = pd.read_sql(sa.text(TRAINING_EVENTS_SQL), src.engine)
         wx = src.weather()
         rain = wx.set_index("date")["prcp"].fillna(0) if "gov_code" not in wx.columns else None
     else:

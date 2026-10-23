@@ -77,6 +77,20 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Pilot photos `data/m1/pilot/` and outputs `data/m1/pilot_out/` are gitignored; never commit them.
 - Known: potholes in close-up citizen photos are missed (0/7 on the pilot). Do not claim local accuracy.
 
+## Demo data (scripts/seed_demo.py)
+- Needs the stack with `--profile m2 --profile m1` (perception-worker) and photos in `data/m1/pilot/`. Run from the repo
+  root with the M2 venv (it calls `prediction.jobs.score`):
+  - seed (idempotent): `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py`
+  - reset (lists demo rows, asks `yes`, deletes only them + their media, then one normal M2 pass):
+    `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py --reset`
+  - `--summary` prints the DB summary; `--recheck` reruns the M3 route checks; `--rescore` forces the M2 pass.
+- Everything goes through the API (OSRM lines, M1 worker, validation, `/routing/driver/next-best`) and the normal
+  M2 job; the script only adds the demo tag and, on reset, deletes demo rows. Never insert scores/routes/alerts by hand.
+- Demo rows: usernames `demo.*`; `metadata.demo` / `payload.demo` / `options.demo` = true elsewhere. The API exposes
+  `demo` and the UI shows "DÉMO — données fictives". M2 training excludes them (`condition_model.TRAINING_EVENTS_SQL`,
+  `drop_demo`, test `test_demo_events_are_excluded_from_condition_training`).
+- Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
+
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
   reads only `data/rag/corpus/**` (field guides; a future user guide also goes there). The `docs/**/*.md` rows

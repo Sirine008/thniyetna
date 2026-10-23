@@ -11,6 +11,7 @@ from .prompt import NUMBERS_RULE, REFUSAL
 
 COMPLAINT_RADIUS_M = 100
 INSPECTION_RADIUS_M = 30
+DEMO_LABEL = "DÉMO — données fictives"  # rows tagged payload.demo by scripts/seed_demo.py
 MISSING = "Non fourni par l'assistant — consultez les sources ci-dessous."
 
 PRIORITY_LABELS = {"P1": "P1 · Urgent", "P2": "P2 · Prioritaire", "P3": "P3 · Planifier", "P4": "P4 · Surveiller"}
@@ -51,12 +52,14 @@ def gather_facts(db, segment_code: str) -> dict | None:
           AND (valid_until IS NULL OR valid_until > now())
         ORDER BY created_at DESC LIMIT 1"""), {"s": seg["id"]}).mappings().first()
     events = db.execute(text("""
-        SELECT event_type, severity, confidence, status IN ('validated', 'closed') validated, observed_at, source
+        SELECT event_type, severity, confidence, status IN ('validated', 'closed') validated, observed_at, source,
+               coalesce((payload->>'demo')::boolean,false) demo
         FROM road_events WHERE segment_id = CAST(:s AS uuid) AND status <> 'closed'
         ORDER BY observed_at DESC"""), {"s": seg["id"]}).mappings().all()
     complaints = db.execute(text("""
         SELECT c.payload->>'category' category, c.status, c.created_at,
-               round(ST_Distance(c.geom::geography, s.geom::geography)::numeric, 0)::float distance_m
+               round(ST_Distance(c.geom::geography, s.geom::geography)::numeric, 0)::float distance_m,
+               coalesce((c.payload->>'demo')::boolean, false) demo
         FROM complaints c, road_segments s
         WHERE s.id = CAST(:s AS uuid) AND c.status NOT IN ('resolved', 'rejected')
           AND ST_DWithin(c.geom::geography, s.geom::geography, :r)
@@ -121,6 +124,10 @@ def _label(table: dict, v) -> str:
     return table.get(v, v) if v else "non renseigné"
 
 
+def _demo(row: dict) -> str:
+    return f"[{DEMO_LABEL}] " if row.get("demo") else ""
+
+
 def template_sections(facts: dict) -> list[dict]:
     """Constat, Priorité, Données manquantes — from the database facts only."""
     seg, risk, events, complaints = facts["segment"], facts["risk"], facts["events"], facts["complaints"]
@@ -132,11 +139,11 @@ def template_sections(facts: dict) -> list[dict]:
                        f"signalement citoyen ouvert à moins de {COMPLAINT_RADIUS_M} m. "
                        "Les conseils ci-dessous sont des conseils généraux d'inspection, pas une intervention.")
     for e in events:
-        constat.append(f"Détection M1 : {_label(DEFECT_LABELS, e['event_type'])} — sévérité {_num(e['severity'])}, "
+        constat.append(f"{_demo(e)}Détection M1 : {_label(DEFECT_LABELS, e['event_type'])} — sévérité {_num(e['severity'])}, "
                        f"confiance {_num(e['confidence'])}, {'validée' if e['validated'] else 'non validée'}, "
                        f"observée le {_date(e['observed_at'])}.")
     for c in complaints:
-        constat.append(f"Signalement citoyen ({_label(DEFECT_LABELS, c['category'])}) à {_num(c['distance_m'])} m, "
+        constat.append(f"{_demo(c)}Signalement citoyen ({_label(DEFECT_LABELS, c['category'])}) à {_num(c['distance_m'])} m, "
                        f"statut {c['status']}, reçu le {_date(c['created_at'])}.")
     if risk:
         constat.append(f"État prédit (M2) : {_label(CONDITION_LABELS, risk['predicted_condition'])}.")

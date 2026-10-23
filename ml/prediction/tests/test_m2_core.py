@@ -164,6 +164,29 @@ def test_same_day_m1_event_counts_in_todays_pass(bundle, accidents, weather, roa
     assert midnight["b"]["predicted_condition"] == "no_observed_defect"  # --as-of replays stay reproducible
 
 
+def test_demo_events_are_excluded_from_condition_training():
+    from prediction.condition_model import TRAINING_EVENTS_SQL, build_panel, drop_demo
+
+    # the DB query of `condition_model train --source db` filters the demo flag
+    assert "coalesce((payload->>'demo')::boolean, false)" in TRAINING_EVENTS_SQL
+    assert "WHERE segment_id IS NOT NULL AND NOT" in TRAINING_EVENTS_SQL
+
+    segs = pd.DataFrame({"segment_id": ["s0", "s1"], "road_class": ["national"] * 2, "length_m": 1000.0,
+                         "gov_code": "TN-23"})
+    real = [{"segment_id": "s0", "severity": 0.8, "confidence": 0.9, "observed_at": d.isoformat() + "Z",
+             "status": "validated", "validated": True, "demo": False}
+            for d in pd.date_range("2024-01-01", "2024-12-31", freq="10D")]
+    # demo rows on another segment, severe, inside every horizon: they would add positives if kept
+    demo = [{"segment_id": "s1", "severity": 0.95, "confidence": 0.9, "observed_at": d.isoformat() + "Z",
+             "status": "validated", "validated": True, "demo": "true"}
+            for d in pd.date_range("2024-01-05", "2024-12-31", freq="10D")]
+    only_real = build_panel(segs, pd.DataFrame(real).drop(columns="demo"), horizon_days=30, step_days=14)
+    with_demo = build_panel(segs, pd.DataFrame(real + demo), horizon_days=30, step_days=14)
+    pd.testing.assert_frame_equal(only_real, with_demo)
+    assert with_demo.loc[with_demo["segment_id"] == "s1", "label"].sum() == 0
+    assert len(drop_demo(pd.DataFrame(real + demo))) == len(real)
+
+
 def test_contract_rejects_bad_records():
     with pytest.raises(ValueError):
         validate({"segment_id": "x", "risk_score": 1.5, "risk_level": "low", "horizon_days": 30,

@@ -23,6 +23,7 @@ class ComplaintOut(BaseModel):
     created_at: datetime
     category: Optional[str] = None
     image_url: Optional[str] = None
+    demo: bool = False  # demo data (scripts/seed_demo.py), shown as "DÉMO — données fictives"
 
 
 class ComplaintStatusUpdate(BaseModel):

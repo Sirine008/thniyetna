@@ -64,3 +64,24 @@ def test_pilot_annotation_draws_boxes():
     image = np.zeros((200, 300, 3), dtype=np.uint8)
     out = annotate(image, [Detection("pothole", 0.8, (50.0, 60.0, 150.0, 160.0), 0.7)])
     assert out.shape == image.shape and out.any() and not image.any()
+
+
+def test_worker_jsonb_parameters_are_typed():
+    # regression: an untyped bind inside jsonb_build_object ("could not determine data type of
+    # parameter") made every job fail when a 2nd observation merged into an existing event
+    import re
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "worker.py").read_text(encoding="utf-8")
+    calls = []
+    for m in re.finditer(r"jsonb_build_object\(", src):
+        depth, i = 1, m.end()
+        while depth:
+            depth += {"(": 1, ")": -1}.get(src[i], 0)
+            i += 1
+        calls.append(src[m.end():i - 1])
+    assert len(calls) >= 3
+    for body in calls:
+        binds = re.findall(r"(?<![:\w]):(\w+)", body)
+        typed = re.findall(r"CAST\(:(\w+) AS \w+\)", body)
+        assert sorted(binds) == sorted(typed), body

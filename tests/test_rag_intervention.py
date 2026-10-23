@@ -23,6 +23,16 @@ POTHOLE = {"event_type": "pothole", "severity": 0.85, "confidence": 0.9132, "val
            "observed_at": "2026-10-14T08:30:00+00:00", "source": "m1"}
 
 
+def test_demo_rows_are_labelled_in_the_constat():
+    complaint = {"category": "road_damage", "status": "open", "created_at": "2026-10-13T10:00:00+00:00",
+                 "distance_m": 12.0}
+    constat = I.template_sections(facts([{**POTHOLE, "demo": True}, POTHOLE],
+                                        [{**complaint, "demo": True}]))[0]["text"].splitlines()
+    assert constat[1].startswith("[DÉMO — données fictives] Détection M1 : nid-de-poule")
+    assert constat[2].startswith("Détection M1 : nid-de-poule")  # a real detection keeps no label
+    assert constat[3].startswith("[DÉMO — données fictives] Signalement citoyen")
+
+
 def test_query_from_defect_types_and_no_defect():
     assert I.retrieval_query(facts()) == I.NO_DEFECT_QUERY
     assert I.retrieval_query(facts([POTHOLE])) == "réparation nid-de-poule enrobé température signalisation chantier"

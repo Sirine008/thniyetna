@@ -30,6 +30,7 @@ class RoadEventOut(BaseModel):
     timestamp: datetime
     validated: bool
     media_uri: Optional[str] = None
+    demo: bool = False  # demo data (scripts/seed_demo.py), shown as "DÉMO — données fictives"
 
 
 class InspectionStart(BaseModel):
@@ -110,3 +111,4 @@ class ObservationOut(BaseModel):
     media_uri: Optional[str] = None
     model_name: Optional[str] = None
     model_version: Optional[str] = None
+    demo: bool = False

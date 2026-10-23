@@ -211,7 +211,8 @@ def list_observations(
     rows = db.execute(text("""
       SELECT id::text,event_id::text,session_id::text,source,defect_type,confidence,
              severity_proxy,ST_Y(geom) latitude,ST_X(geom) longitude,captured_at,
-             frame_index,frame_time_s,bbox_xyxy,media_uri,model_name,model_version
+             frame_index,frame_time_s,bbox_xyxy,media_uri,model_name,model_version,
+             coalesce((metadata->>'demo')::boolean,false) demo
       FROM road_observations
       WHERE (CAST(:session AS text) IS NULL OR session_id::text=CAST(:session AS text))
       ORDER BY captured_at DESC
@@ -282,7 +283,7 @@ def list_events(limit: int = 100, db: Session = Depends(get_db)):
     rows = db.execute(text("""
       SELECT id::text,segment_id::text,event_type defect_type,severity,confidence,
              ST_Y(geom) latitude,ST_X(geom) longitude,source,
-             observed_at timestamp,media_uri,status
+             observed_at timestamp,media_uri,status,coalesce((payload->>'demo')::boolean,false) demo
       FROM road_events ORDER BY observed_at DESC LIMIT :lim
     """), {"lim": min(limit, 500)}).mappings()
     return [{**r, "validated": r["status"] in ("validated", "closed")} for r in rows]

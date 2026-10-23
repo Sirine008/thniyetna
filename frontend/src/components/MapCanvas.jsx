@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {BIZERTE} from '../lib/constants';
+import {BIZERTE,demoBadge} from '../lib/constants';
 let leafletPromise;
 function loadLeaflet(){if(window.L)return Promise.resolve(window.L);if(leafletPromise)return leafletPromise;leafletPromise=new Promise((resolve,reject)=>{if(!document.querySelector('link[data-leaflet]')){const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';l.dataset.leaflet='1';document.head.appendChild(l)}const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=()=>resolve(window.L);s.onerror=reject;document.head.appendChild(s)});return leafletPromise;}
 const icon=(L,type,label)=>L.divIcon({className:'th-marker-wrap',html:`<div class="th-marker ${type}"><span>${label}</span></div>`,iconSize:[34,34],iconAnchor:[17,17]});
@@ -9,8 +9,8 @@ export default function MapCanvas({data,selectedRoute=[],alternative=[],userPosi
  useEffect(()=>{if(!map.current||!window.L)return;const L=window.L;layer.current?.remove();const group=L.layerGroup().addTo(map.current);layer.current=group;
    // Intentionally do NOT render official-route/risk-segment overlays here. They created the faint red/blue lines
    // that looked like navigation routes. Navigation geometry below comes only from OSRM.
-   (data?.events||[]).filter(e=>e.status!=='closed').forEach(e=>L.marker([e.latitude,e.longitude],{icon:icon(L,'danger','!')}).addTo(group).bindPopup(`<b>${(e.event_type||'Défaut routier').replaceAll('_',' ')}</b><br/>Sévérité ${Math.round((e.severity||0)*100)}%<br/><small>Détection véhicule · ${e.status||'observed'}</small>`));
-   (data?.complaints||[]).filter(c=>!['resolved','rejected'].includes(c.status)).forEach(c=>L.marker([c.latitude,c.longitude],{icon:icon(L,'claim','●')}).addTo(group).bindPopup(`<b>Signalement citoyen</b><br/>${c.description||'Dégradation routière'}<br/><small>${c.status||'open'}</small>`));
+   (data?.events||[]).filter(e=>e.status!=='closed').forEach(e=>L.marker([e.latitude,e.longitude],{icon:icon(L,'danger','!')}).addTo(group).bindPopup(`${demoBadge(e)}<b>${(e.event_type||'Défaut routier').replaceAll('_',' ')}</b><br/>Sévérité ${Math.round((e.severity||0)*100)}%<br/><small>Détection véhicule · ${e.status||'observed'}</small>`));
+   (data?.complaints||[]).filter(c=>!['resolved','rejected'].includes(c.status)).forEach(c=>L.marker([c.latitude,c.longitude],{icon:icon(L,'claim','●')}).addTo(group).bindPopup(`${demoBadge(c)}<b>Signalement citoyen</b><br/>${c.description||'Dégradation routière'}<br/><small>${c.status||'open'}</small>`));
    if(selectedRoute.length)L.polyline(selectedRoute,{weight:8,opacity:.96,className:alternative.length?'route-danger':'route-active'}).addTo(group);
    if(alternative.length)L.polyline(alternative,{weight:8,opacity:.98,className:'route-safe'}).addTo(group);
    if(userPosition)L.marker(userPosition,{icon:icon(L,'user','⌖')}).addTo(group).bindTooltip('Départ · GPS actuel');
