@@ -29,6 +29,7 @@ class HazardInfo(BaseModel):
     longitude: float
     risk: float
     distance_m: float  # true distance from the hazard to the fastest route
+    distance_from_start_m: float = 0  # along the fastest route, from the start to the hazard (display only)
 
 
 class RouteResponse(BaseModel):

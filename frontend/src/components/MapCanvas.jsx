@@ -6,7 +6,7 @@ const icon=(L,type,label)=>L.divIcon({className:'th-marker-wrap',html:`<div clas
 const pt=p=>p?`${p[0].toFixed(5)},${p[1].toFixed(5)}`:'';
 // focus: a [lat,lon] to centre on (e.g. a searched destination); the view only moves when the route, the
 // start / destination or the focus change, not on every data refresh or map click.
-export default function MapCanvas({data,selectedRoute=[],alternative=[],userPosition,destination,onMapClick,focus,startLabel='Départ · GPS actuel',destinationLabel='Destination',interactive=true,className=''}){
+export default function MapCanvas({data,selectedRoute=[],alternative=[],userPosition,destination,onMapClick,focus,dangerRoute=false,startLabel='Départ · GPS actuel',destinationLabel='Destination',interactive=true,className=''}){
  const el=useRef(),map=useRef(),layer=useRef(),clickRef=useRef(onMapClick),viewKey=useRef(''),[offline,setOffline]=useState(false),[ready,setReady]=useState(false);
  clickRef.current=onMapClick;
  useEffect(()=>{let alive=true;loadLeaflet().then(L=>{if(!alive)return;if(!map.current){map.current=L.map(el.current,{zoomControl:false,attributionControl:false,dragging:interactive,scrollWheelZoom:interactive,doubleClickZoom:interactive}).setView(BIZERTE,13);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map.current);L.control.zoom({position:'bottomright'}).addTo(map.current);map.current.on('click',e=>clickRef.current?.([e.latlng.lat,e.latlng.lng]))}setReady(true);setTimeout(()=>map.current?.invalidateSize(),50)}).catch(()=>setOffline(true));return()=>{alive=false}},[]);
@@ -15,7 +15,7 @@ export default function MapCanvas({data,selectedRoute=[],alternative=[],userPosi
    // that looked like navigation routes. Navigation geometry below comes only from OSRM.
    (data?.events||[]).filter(e=>e.status!=='closed').forEach(e=>L.marker([e.latitude,e.longitude],{icon:icon(L,'danger','!')}).addTo(group).bindPopup(`${demoBadge(e)}<b>${(e.event_type||'Défaut routier').replaceAll('_',' ')}</b><br/>Sévérité ${Math.round((e.severity||0)*100)}%<br/><small>Détection véhicule · ${e.status||'observed'}</small>`));
    (data?.complaints||[]).filter(c=>!['resolved','rejected'].includes(c.status)).forEach(c=>L.marker([c.latitude,c.longitude],{icon:icon(L,'claim','●')}).addTo(group).bindPopup(`${demoBadge(c)}<b>Signalement citoyen</b><br/>${c.description||'Dégradation routière'}<br/><small>${c.status||'open'}</small>`));
-   if(selectedRoute.length)L.polyline(selectedRoute,{weight:8,opacity:.96,className:alternative.length?'route-danger':'route-active'}).addTo(group);
+   if(selectedRoute.length)L.polyline(selectedRoute,{weight:8,opacity:.96,className:alternative.length||dangerRoute?'route-danger':'route-active'}).addTo(group);
    if(alternative.length)L.polyline(alternative,{weight:8,opacity:.98,className:'route-safe'}).addTo(group);
    if(userPosition)L.marker(userPosition,{icon:icon(L,'user','⌖')}).addTo(group).bindTooltip(startLabel);
    if(destination)L.marker(destination,{icon:icon(L,'destination','◆')}).addTo(group).bindTooltip(destinationLabel);
@@ -26,6 +26,6 @@ export default function MapCanvas({data,selectedRoute=[],alternative=[],userPosi
    if(routePts.length>1)map.current.fitBounds(L.latLngBounds(routePts),{padding:[70,70],maxZoom:15});
    else if(focus)map.current.setView(focus,Math.max(map.current.getZoom(),14));
    else if(userPosition)map.current.setView(userPosition,Math.max(map.current.getZoom(),13));
- },[ready,data,selectedRoute,alternative,userPosition,destination,focus,startLabel,destinationLabel]);
+ },[ready,data,selectedRoute,alternative,dangerRoute,userPosition,destination,focus,startLabel,destinationLabel]);
  return <div className={`map-shell ${className}`}><div ref={el} className="leaflet-host"/>{offline&&<div className="map-fallback"><div className="grid-city"/><b>Carte hors-ligne</b><span>Les données THNIYETNA restent disponibles.</span></div>}</div>
 }

@@ -18,7 +18,11 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
   `tunisia-latest.osm.pbf`. Never commit these files.
 
 ## Rules
-- Run `pytest -q` (repo root) after any code change; all tests must pass.
+- Tests: `ml\.venv\Scripts\python.exe -m pytest -q` (repo root) after any code change; all tests must pass. Test dependencies (fastapi,
+  python-jose... = the API's) come from `requirements-dev.txt`, installed once in the M2 venv:
+  `ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`. Expected: 0 skips except M1's `cv2` test
+  (OpenCV only exists in the perception worker image). Do not use a bare `pytest` from PATH (another Python without
+  the API packages). Frontend: `npm test` in `frontend/` (node --test, `src/lib/routeState.js`) and `npm run build`.
 - Never invent metrics or results. Report numbers only from files the pipeline wrote
   (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, the model card).
 - Model card: `train` / `ablation` regenerate it at `reports/m2/MODEL_CARD.md` (+ `models/m2/model_card.json`).
@@ -112,7 +116,11 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Coverage: `POST /routing/route` answers 422 « Destination hors de la zone couverte (gouvernorat de Bizerte) »
   (or « Point de départ hors… ») when a point is outside TN-23 + 2 km (the OSRM extract), when OSRM returns
   NoSegment / NoRoute, or when OSRM snaps a point more than 1.5 km away (e.g. Lake Ichkeul, the sea).
-- Tests: `tests/test_routing_places.py` (pure parts run in `ml/.venv`; endpoint tests need fastapi).
+- Result card (`frontend/src/lib/routeState.js`, wording of the driver alerts): safe « Trajet vérifié · aucun danger
+  significatif » (green) / reroute « Alternative plus sûre recommandée », risque A % → B % + dangers évités / warning
+  « Danger sur l’itinéraire — aucune alternative sûre » (red) with each hazard (type in French, distance from the start
+  = `hazards[].distance_from_start_m`, risk). Never « vérifié » when `fastest_risk` >= 0.42.
+- Tests: `tests/test_routing_places.py`, `tests/test_routing_event_reroute.py` (warning card data), `npm test`.
 
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
@@ -128,8 +136,8 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Add documents to `data/rag/corpus/` (never commit them; only its README is versioned), then index (skips unchanged files):
   `docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest`
 - Endpoints (both supervisor roles): `POST /assistant/ask`, `GET /assistant/status`.
-- Tests: `tests/test_rag_core.py` runs anywhere; `tests/test_rag_api.py` needs fastapi (skipped in `ml/.venv`,
-  run it in the api image).
+- Tests: `tests/test_rag_core.py` runs anywhere; `tests/test_rag_api.py` needs fastapi (installed in `ml/.venv`
+  from `requirements-dev.txt`).
 - First check (2026-10-15, 14 docs / 625 chunks): plumbing works, but both test questions were refused.
   "Limites du modèle M2 ?" → retrieval miss (French question vs English model card; the limits chunk is not in
   the top 4). "Nid-de-poule par temps froid ?" → the cold-mix pages are retrieved, but llama3.2:3b still answers

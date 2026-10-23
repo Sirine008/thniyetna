@@ -6,6 +6,7 @@ import MapCanvas from '../components/MapCanvas';
 import PlaceSearch, { placeDetail } from '../components/PlaceSearch';
 import { api, openRealtime } from '../lib/api';
 import { BIZERTE, EMPTY_MAP } from '../lib/constants';
+import { routeState } from '../lib/routeState';
 
 const QUICK = [
   ['Menzel Jemil', 37.2366, 9.9140],
@@ -107,10 +108,11 @@ export default function Citizen() {
 
   const normal = plan?.fastest_polyline || [];
   const safe = plan?.reroute_needed ? plan.polyline : [];
+  const state = plan ? routeState(plan) : null;
   const outOfZone = dest?.covered === false;
 
   return <div className={`citizen-nav${pickStart ? ' picking' : ''}`}>
-    <MapCanvas data={data} userPosition={start.pos} destination={dest?.pos} selectedRoute={normal} alternative={safe}
+    <MapCanvas data={data} userPosition={start.pos} destination={dest?.pos} selectedRoute={normal} alternative={safe} dangerRoute={state?.kind === 'warning'}
       focus={dest?.focus ? dest.pos : undefined} onMapClick={onMapClick}
       startLabel={`Départ · ${start.label}`} destinationLabel={dest ? `Destination · ${dest.label}` : 'Destination'} className="citizen-nav-map"/>
     <div className="citizen-nav-top">
@@ -136,7 +138,14 @@ export default function Citizen() {
         ? <div className="route-alert route-error" role="alert"><span>!</span><div><b>{outOfZone ? OUT_OF_ZONE : routeError}</b><small>Choisissez un point dans le gouvernorat de Bizerte.</small></div></div>
         : <p className="analysis-copy">Départ : {start.label}. L’analyse utilise les incidents réellement enregistrés dans la plateforme.</p>}
       <button className="analyze-route-btn" onClick={analyze} disabled={loading || outOfZone}>{loading ? <>Analyse du trajet…</> : <>Analyser le trajet <span>→</span></>}</button></div>}
-    {plan && <div className="citizen-route-sheet"><div className="sheet-handle"/><div className="route-summary"><div><small>{start.mode === 'gps' ? 'GPS' : 'Départ'} → destination</small><b>{dest.label}</b></div><strong>{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>{plan.reroute_needed ? <><div className="route-alert"><span>!</span><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)}% · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div><div className="route-recommend"><span>✓</span><div><b>Alternative plus sûre calculée</b><small>{(plan.distance_m / 1000).toFixed(1)} km · {Math.round(plan.duration_s / 60)} min · risque {Math.round((plan.risk || 0) * 100)}%</small></div></div><div className="route-legend"><i className="red"/> Trajet initial <i className="green"/> Alternative OSRM</div></> : <div className="route-recommend"><span>✓</span><div><b>Trajet vérifié</b><small>{(plan.distance_m / 1000).toFixed(1)} km · aucun détour plus sûr nécessaire</small></div></div>}<button className="secondary-route-btn" onClick={analyze}>Recalculer</button></div>}
+    {plan && state && <div className={`citizen-route-sheet route-state-${state.kind}`}><div className="sheet-handle"/>
+      <div className="route-summary"><div><small>{start.mode === 'gps' ? 'GPS' : 'Départ'} → destination</small><b>{dest.label}</b></div><strong>{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>
+      {state.kind === 'reroute' && <div className="route-alert"><span>!</span><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)} % · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div>}
+      <div className={`route-verdict ${state.tone}`} role={state.kind === 'safe' ? undefined : 'alert'}><span>{state.kind === 'safe' ? '✓' : state.kind === 'reroute' ? '↪' : '!'}</span><div><b>{state.title}</b><small>{state.detail}</small></div></div>
+      {(state.hazards.length > 0 || state.note) && <div className={`route-hazards ${state.tone}`}>{state.hazards.length > 0 && <><small>{state.hazardsTitle}</small><ul>{state.hazards.map((h, i) => <li key={i}>{h}</li>)}</ul></>}{state.note && <p>{state.note}</p>}</div>}
+      {state.kind === 'reroute' && <div className="route-legend"><i className="red"/> Trajet initial <i className="green"/> Alternative OSRM</div>}
+      {state.kind === 'warning' && <div className="route-legend"><i className="red"/> Seul trajet disponible · roulez prudemment</div>}
+      <button className="secondary-route-btn" onClick={analyze}>Recalculer</button></div>}
     <Link className="floating-report" to="/citizen/report">＋ <span>Signaler</span></Link>
     <BottomNav kind="citizen"/>
   </div>;

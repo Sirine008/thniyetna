@@ -3,6 +3,7 @@
 Thresholds are the production ones (reroute if the fastest risk >= 0.42 and an alternative is at
 least 0.12 safer); these tests do not change them.
 """
+import math
 import sys
 from pathlib import Path
 
@@ -309,3 +310,28 @@ def test_alert_action_rules():
     assert R._alert_action(a, "driver.reroute.alert", "k") == ("new", ["x", "y"])
     assert R._alert_action(a, None, "") == ("resolve", ["x", "y"])
     assert R._alert_action([], None, "") == ("none", [])
+
+
+def test_citizen_warning_lists_each_hazard_with_its_distance_from_the_start(m3):
+    """Citizen card, third state (frontend/src/lib/routeState.js): risky route, no safe alternative."""
+    via = [[37.270, 9.850], [37.280, 9.850], [37.280, 9.865], [37.270, 9.865], [37.270, 9.880]]
+    published = m3([EVENT], [osrm(DIRECT, 300), osrm(via, 420)], detours=[osrm(via, 420)])
+    res = R.get_route(R.RouteRequest(current_lat=37.270, current_lon=9.850, destination_lat=37.270,
+                                     destination_lon=9.880), FakeDB())
+    assert res.status == "warning" and res.warning and not res.reroute_needed
+    assert res.fastest_risk >= R.REROUTE_MIN_RISK and res.polyline == res.fastest_polyline
+    assert len(res.hazards) == 1
+    h = res.hazards[0]
+    assert (h.type, h.risk) == ("pothole", 0.9)
+    # EVENT is 0.015 deg of longitude east of the start along DIRECT (~1.33 km at 37.27 N)
+    assert abs(h.distance_from_start_m - 1329) < 5
+    assert published == []  # the citizen check never creates a driver alert
+
+
+def test_along_route_distance():
+    line = [[37.0, 9.0], [37.0, 9.01], [37.01, 9.01]]
+    east = 0.01 * 111320.0 * math.cos(math.radians(37.0))
+    assert R._along_route_m(line, 37.0, 9.0) == 0
+    assert abs(R._along_route_m(line, 37.0001, 9.005) - east / 2) < 1
+    assert abs(R._along_route_m(line, 37.005, 9.0102) - (east + 552.7)) < 2
+    assert R._along_route_m(line[:1], 37.0, 9.0) == 0.0

@@ -84,3 +84,17 @@
   .nav-welcome{left:12px;right:12px;padding:16px}
 }
 @media(max-width:400px){.trip-row-start button span{display:none}.trip-row-start button{width:36px;padding:0}}
+
+/* Citizen route card: safe (green) / reroute (orange + green) / warning (red) */
+.route-verdict{display:flex;gap:10px;align-items:center;padding:10px 11px;border-radius:14px;margin-top:8px;border:1px solid}
+.route-verdict>span{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:10px;color:#fff;font-weight:900}
+.route-verdict b,.route-verdict small{display:block}.route-verdict b{font-size:11px}.route-verdict small{font-size:9px;color:#5f7378;margin-top:2px}
+.route-verdict.green{background:#e9f8f4;border-color:#a4e4d5}.route-verdict.green>span{background:#08ad8d}
+.route-verdict.orange{background:#e9f8f4;border-color:#a4e4d5}.route-verdict.orange>span{background:#08ad8d}
+.route-verdict.red{background:#ffeceb;border-color:#f3a29b}.route-verdict.red>span{background:#d92f35}.route-verdict.red b{color:#a3201f}
+.route-state-reroute .route-alert{background:#fff4e8;border-color:#ffc58f}.route-state-reroute .route-alert>span{background:#f08a24}
+.route-hazards{margin-top:7px;padding:8px 11px;border-radius:12px;font-size:10px;max-height:24vh;overflow-y:auto}
+.route-hazards small{display:block;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6e8185}
+.route-hazards ul{margin:4px 0 0;padding-left:16px;line-height:1.55}.route-hazards p{margin:3px 0 0}
+.route-hazards.red{background:#fff6f5;color:#7d1d1b}.route-hazards.orange{background:#fff8f0;color:#7a4a12}
+.route-legend .red{background:#e74b43}

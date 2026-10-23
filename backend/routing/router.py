@@ -127,6 +127,20 @@ def _point_segment_m(lat,lon,a,b):
     t=0.0 if n==0 else max(0.0,min(1.0,-(ax*dx+ay*dy)/n))
     return math.hypot(ax+t*dx,ay+t*dy)
 
+def _along_route_m(line,lat,lon):
+    """Distance along the route from its start to the point of the route closest to (lat,lon), in metres
+    (display only: "danger à 2,3 km du départ"; decisions use _hazard_distances)."""
+    if len(line)<2:return 0.0
+    k=111320.0*math.cos(math.radians(lat)); best=(math.inf,0.0); run=0.0
+    for a,b in zip(line,line[1:]):
+        ax,ay=(a[1]-lon)*k,(a[0]-lat)*110540.0; bx,by=(b[1]-lon)*k,(b[0]-lat)*110540.0
+        dx,dy=bx-ax,by-ay; n=dx*dx+dy*dy; seg=math.sqrt(n)
+        t=0.0 if n==0 else max(0.0,min(1.0,-(ax*dx+ay*dy)/n))
+        d=math.hypot(ax+t*dx,ay+t*dy)
+        if d<best[0]:best=(d,run+t*seg)
+        run+=seg
+    return best[1]
+
 def _hazard_distances(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
     """{hazard index: true distance in m to the route} for the hazards within radius_m of the route."""
     if not hazards or len(line)<2:return {}
@@ -317,7 +331,9 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
     listed=sorted(trigger,key=lambda i:-_exposure(hazards[i],fast_near[i]))
     hazard_info=[HazardInfo(type=str(hazards[i].get("event_type") or "hazard"),latitude=float(hazards[i]["lat"]),
                             longitude=float(hazards[i]["lon"]),risk=round(float(hazards[i].get("risk") or .5),3),
-                            distance_m=round(fast_near[i],1)) for i in listed]
+                            distance_m=round(fast_near[i],1),
+                            distance_from_start_m=round(_along_route_m(fastest.polyline,float(hazards[i]["lat"]),
+                                                                       float(hazards[i]["lon"])))) for i in listed]
     alternatives=[candidate for candidate,_ in unique if candidate.polyline != best.polyline][:4]
 
     return RouteResponse(

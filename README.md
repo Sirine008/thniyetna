@@ -257,8 +257,10 @@ When the database schema changes, add an Alembic migration rather than editing t
 
 ## Tests
 
-```bash
-pytest -q
+```powershell
+ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # once
+ml\.venv\Scripts\python.exe -m pytest -q
+cd frontend; npm test
 ```
 
 Frontend build:
