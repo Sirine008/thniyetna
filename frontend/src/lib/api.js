@@ -27,7 +27,11 @@ export async function request(path, { method = 'GET', body, headers = {}, auth =
   });
 
   if (response.status === 401 && auth) clearSession();
-  if (!response.ok) throw new Error(await parseError(response));
+  if (!response.ok) {
+    const error = new Error(await parseError(response));
+    error.status = response.status; // 422 on /routing/route = point outside the covered zone (French message)
+    throw error;
+  }
   if (response.status === 204) return null;
   return response.json();
 }
@@ -62,6 +66,9 @@ export const api = {
   nextBest: body => request('/routing/driver/next-best', { auth: true, method: 'POST', body }),
   planRoute: body => request('/routing/route', { method: 'POST', body }),
   geocode: q => request(`/routing/geocode?q=${encodeURIComponent(q)}`),
+  // place index of the Bizerte governorate (scripts/build_places_index.py)
+  places: (q, limit = 8) => request(`/routing/places?q=${encodeURIComponent(q)}&limit=${limit}`),
+  nearestPlace: (lat, lon) => request(`/routing/places/nearest?lat=${lat}&lon=${lon}`),
   equipmentDashboard: () => request('/platform/dashboard/equipment', { auth: true }),
   complaints: () => request('/platform/complaints', { auth: true }),
   updateComplaint: (id, body) => request(`/platform/complaints/${id}/status`, { auth: true, method: 'PATCH', body }),

@@ -94,6 +94,26 @@ history carries the signal · trees do not beat logistic regression · accident 
   `drop_demo`, test `test_demo_events_are_excluded_from_condition_training`).
 - Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
 
+## M3 destination search (place index, since 2026-10-23)
+- Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`, `components/PlaceSearch.jsx`):
+  free destination = autocomplete search, a map click (nearest place name shown) or the 3 shortcut buttons; start =
+  « Ma position » (browser geolocation), « Carte » (next map click) or the Bizerte centre by default. M3 logic unchanged.
+- Table `places` (Alembic `0007_places_index`, extension `pg_trgm`): name (name:fr preferred), name_ar, name_norm
+  (normalised search key of every name variant), category, rank, locality (nearest town / village), point geom.
+  Normalisation (`backend/routing/places_index.py`, shared by the API and the script): case, accents, punctuation,
+  ligatures, Arabic diacritics and letter variants (أ/ا, ة/ه, ى/ي), so « menzel bourguiba » = « Ménzel-Bourguiba » = « منزل بورقيبة ».
+- Build / rebuild (after `scripts/osm-clip-bizerte.sh` or a fresh DB; idempotent, replaces the table), from the repo
+  root with the M2 venv (pyosmium) and the host DB:
+  `$env:DATABASE_URL = "<DB from the host>"; ml\.venv\Scripts\python.exe -X utf8 scripts/build_places_index.py`
+  (`--dry-run` = counts only). Keeps points inside TN-23 (`admin_areas`, 300 m tolerance): 711 rows on 2026-10-23
+  (441 streets, 64 schools, 46 villages, 6 towns/city, 5 hospitals, 5 ports...); OSM coverage of streets is sparse.
+- API: `GET /routing/places?q=...&limit=8` (name, category in French, category_key, lat, lon, name_ar?, locality?;
+  503 if the table is missing) and `GET /routing/places/nearest?lat=&lon=` (place within 3 km, `covered`).
+- Coverage: `POST /routing/route` answers 422 « Destination hors de la zone couverte (gouvernorat de Bizerte) »
+  (or « Point de départ hors… ») when a point is outside TN-23 + 2 km (the OSRM extract), when OSRM returns
+  NoSegment / NoRoute, or when OSRM snaps a point more than 1.5 km away (e.g. Lake Ichkeul, the sea).
+- Tests: `tests/test_routing_places.py` (pure parts run in `ml/.venv`; endpoint tests need fastapi).
+
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
   reads only `data/rag/corpus/**` (field guides; a future user guide also goes there). The `docs/**/*.md` rows

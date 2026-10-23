@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .schemas import RouteRequest, RouteResponse, RouteCandidate, HazardInfo
 from .schemas import RouteCreate, AssignmentCreate
+from . import places_index as P
 from shared.db import get_db
 from shared.auth import require_role
 from shared.realtime import publish
@@ -20,8 +21,21 @@ def _fetch_osrm(coords, alternatives=0):
     try:
         with urllib.request.urlopen(f"{OSRM_URL}/route/v1/driving/{coord_string}?{q}",timeout=8) as r: body=json.load(r)
     except Exception as e: raise HTTPException(503,f"OSRM unavailable: {e}")
+    # point outside the OSRM graph (TN-23 + 2 km): clear French message instead of an OSRM error
+    out_of_zone=P.osrm_coverage_error(body)
+    if out_of_zone: raise HTTPException(422,out_of_zone)
     if body.get("code")!="Ok": raise HTTPException(502,f"OSRM error: {body.get('message',body.get('code'))}")
     return body.get("routes",[])
+
+def _covered(db,lat,lon):
+    """True / False when the point is / is not inside TN-23 + COVERAGE_BUFFER_M (the OSRM extract),
+    None when unknown (no admin_areas row, no PostGIS)."""
+    if db is None or not hasattr(db,"execute"):return None
+    try:
+        row=db.execute(text(P.COVERAGE_SQL),{"lat":lat,"lon":lon,"buffer":P.COVERAGE_BUFFER_M}).mappings().first()
+    except Exception:
+        db.rollback(); return None
+    return None if row is None else bool(row["covered"])
 
 def _osrm(req:RouteRequest):
     return _fetch_osrm([(req.current_lat,req.current_lon),(req.destination_lat,req.destination_lon)], req.alternatives)
@@ -231,6 +245,8 @@ def _different_enough(a,b):
 
 @router.post("/route",response_model=RouteResponse)
 def get_route(req:RouteRequest,db:Session=Depends(get_db)):
+    if _covered(db,req.current_lat,req.current_lon) is False: raise HTTPException(422,P.OUT_OF_ZONE_START)
+    if _covered(db,req.destination_lat,req.destination_lon) is False: raise HTTPException(422,P.OUT_OF_ZONE_DESTINATION)
     routes=_osrm(req)
     if not routes:
         raise HTTPException(404,"No route found")
@@ -337,6 +353,28 @@ def geocode(q:str=Query(min_length=2,max_length=120)):
         with urllib.request.urlopen(request,timeout=5) as r: rows=json.load(r)
         return [{"label":x.get("display_name",q),"lat":float(x["lat"]),"lon":float(x["lon"])} for x in rows]
     except Exception:return []
+
+@router.get("/places")
+def search_places(q:str=Query(min_length=1,max_length=120),limit:int=Query(8,ge=1,le=20),db:Session=Depends(get_db)):
+    """Destination search in the TN-23 place index (scripts/build_places_index.py)."""
+    key=P.normalize(q)
+    if len(key)<2:return []
+    try:
+        rows=db.execute(text(P.SEARCH_SQL),{"q":key,"limit":limit}).mappings().all()
+    except Exception:
+        db.rollback(); raise HTTPException(503,"Index des lieux indisponible")
+    return [P.place_row(r) for r in rows]
+
+@router.get("/places/nearest")
+def nearest_place(lat:float=Query(ge=-90,le=90),lon:float=Query(ge=-180,le=180),db:Session=Depends(get_db)):
+    """Name of the closest indexed place to a map click, and whether the point is in the covered zone."""
+    covered=_covered(db,lat,lon)
+    try:
+        row=db.execute(text(P.NEAREST_SQL),{"lat":lat,"lon":lon,"radius":P.NEAREST_RADIUS_M}).mappings().first()
+    except Exception:
+        db.rollback(); row=None
+    return {"place":P.place_row(row) if row else None,"covered":covered,
+            "message":P.OUT_OF_ZONE_DESTINATION if covered is False else None}
 
 @router.get("/official-routes")
 def list_routes(db:Session=Depends(get_db)):

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import LivePill from '../components/LivePill';
 import MapCanvas from '../components/MapCanvas';
+import PlaceSearch, { placeDetail } from '../components/PlaceSearch';
 import { api, openRealtime } from '../lib/api';
 import { BIZERTE, EMPTY_MAP } from '../lib/constants';
 
@@ -11,18 +12,26 @@ const QUICK = [
   ['Centre-ville de Bizerte', 37.2746, 9.8739],
   ['Corniche de Bizerte', 37.2905, 9.8795],
 ];
+const DEFAULT_START = { pos: BIZERTE, label: 'Centre de Bizerte', mode: 'default' };
+const OUT_OF_ZONE = 'Destination hors de la zone couverte (gouvernorat de Bizerte)';
+
+// "Près de Rue Avicenne (Rue · 100 m)" from GET /routing/places/nearest
+const nearLabel = place => place ? `Près de ${place.name}` : 'Point choisi sur la carte';
+const nearDetail = place => place ? [place.category, place.locality, place.distance_m != null && `à ${place.distance_m} m`].filter(Boolean).join(' · ') : 'Aucun lieu nommé à proximité';
 
 export default function Citizen() {
   const [data, setData] = useState(EMPTY_MAP);
   const [live, setLive] = useState('reconnecting');
-  const [pos, setPos] = useState(BIZERTE);
+  const [start, setStart] = useState(DEFAULT_START);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [dest, setDest] = useState(null);
+  const [dest, setDest] = useState(null);   // {pos, label, detail, covered, focus}
+  const [pickStart, setPickStart] = useState(false);
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [routeError, setRouteError] = useState('');
   const [notice, setNotice] = useState('');
-  const timer = useRef();
+  const lookup = useRef(0);
 
   const refresh = async () => {
     try { setData(await api.map()); }
@@ -31,64 +40,103 @@ export default function Citizen() {
 
   useEffect(() => {
     refresh();
-    navigator.geolocation?.getCurrentPosition(p => setPos([p.coords.latitude, p.coords.longitude]));
     return openRealtime((topic) => {
       if (topic === 'complaint.created' || topic === 'road.event.created' || topic === 'road.event.validated') refresh();
     }, setLive);
   }, []);
 
-  const search = value => {
-    setQuery(value);
-    setPlan(null);
-    clearTimeout(timer.current);
-    if (value.trim().length < 2) { setResults([]); return; }
-    timer.current = setTimeout(async () => {
-      try {
-        const rows = await api.geocode(value);
-        setResults(rows.length ? rows : QUICK.filter(x => x[0].toLowerCase().includes(value.toLowerCase())).map(x => ({ label: x[0], lat: x[1], lon: x[2] })));
-      } catch {
-        setResults(QUICK.filter(x => x[0].toLowerCase().includes(value.toLowerCase())).map(x => ({ label: x[0], lat: x[1], lon: x[2] })));
-      }
-    }, 280);
-  };
+  const resetPlan = () => { setPlan(null); setRouteError(''); };
 
   const choose = place => {
-    setQuery(place.label.split(',')[0]);
-    setResults([]);
-    setDest([place.lat, place.lon]);
-    setPlan(null);
+    lookup.current++;
+    setQuery(place.label);
+    setDest({ pos: [place.lat, place.lon], label: place.label, detail: place.detail, covered: true, focus: true });
+    resetPlan();
   };
+
+  const useMyPosition = () => {
+    if (!navigator.geolocation) { setNotice('Géolocalisation indisponible sur cet appareil'); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      p => { setStart({ pos: [p.coords.latitude, p.coords.longitude], label: 'Ma position', mode: 'gps' }); setLocating(false); resetPlan(); },
+      () => { setNotice('Position indisponible — départ : centre de Bizerte'); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  // A map click sets the destination (or the start after "Choisir sur la carte"), then names the nearest place.
+  const onMapClick = async pos => {
+    const id = ++lookup.current;
+    const forStart = pickStart;
+    setPickStart(false);
+    resetPlan();
+    if (forStart) setStart({ pos, label: 'Point choisi sur la carte', mode: 'map' });
+    else { setDest({ pos, label: 'Point choisi sur la carte', detail: 'Recherche du lieu le plus proche…', covered: null }); setQuery(''); }
+    try {
+      const { place, covered, message } = await api.nearestPlace(pos[0], pos[1]);
+      if (id !== lookup.current) return;
+      if (forStart) setStart(s => ({ ...s, label: covered === false ? 'Hors zone couverte' : nearLabel(place) }));
+      else {
+        setDest({ pos, label: nearLabel(place), detail: covered === false ? message : nearDetail(place), covered });
+        setQuery(nearLabel(place));
+      }
+    } catch {
+      if (id === lookup.current && !forStart) setDest(d => d && { ...d, detail: 'Point sur la carte' });
+    }
+  };
+
+  const clearDestination = () => { lookup.current++; setDest(null); resetPlan(); };
 
   const analyze = async () => {
     if (!dest || loading) return;
     setLoading(true);
-    setNotice('');
+    setRouteError('');
     try {
       setPlan(await api.planRoute({
         vehicle_id: 'citizen',
-        current_lat: pos[0], current_lon: pos[1],
-        destination_lat: dest[0], destination_lon: dest[1],
+        current_lat: start.pos[0], current_lon: start.pos[1],
+        destination_lat: dest.pos[0], destination_lon: dest.pos[1],
         alternatives: 3,
       }));
     } catch (error) {
-      setNotice(`Analyse impossible : ${error.message}`);
+      // 422: point outside the OSRM coverage / not routable, the API already gives the French message
+      setRouteError(error.status === 422 ? error.message : `Analyse impossible : ${error.message}`);
+      setPlan(null);
     } finally { setLoading(false); }
   };
 
   const normal = plan?.fastest_polyline || [];
   const safe = plan?.reroute_needed ? plan.polyline : [];
+  const outOfZone = dest?.covered === false;
 
-  return <div className="citizen-nav">
-    <MapCanvas data={data} userPosition={pos} destination={dest} selectedRoute={normal} alternative={safe} className="citizen-nav-map"/>
+  return <div className={`citizen-nav${pickStart ? ' picking' : ''}`}>
+    <MapCanvas data={data} userPosition={start.pos} destination={dest?.pos} selectedRoute={normal} alternative={safe}
+      focus={dest?.focus ? dest.pos : undefined} onMapClick={onMapClick}
+      startLabel={`Départ · ${start.label}`} destinationLabel={dest ? `Destination · ${dest.label}` : 'Destination'} className="citizen-nav-map"/>
     <div className="citizen-nav-top">
       <div className="nav-brand"><b>THNIYETNA</b><LivePill status={live}/></div>
-      <div className="destination-box"><span className="start-dot"/><div><small>Départ · GPS actuel</small><input value={query} onChange={e => search(e.target.value)} placeholder="Où allez-vous ?" autoComplete="off"/></div><button onClick={() => navigator.geolocation?.getCurrentPosition(p => setPos([p.coords.latitude, p.coords.longitude]))}>⌖</button></div>
-      {results.length > 0 && <div className="search-results">{results.map((r, i) => <button key={i} onClick={() => choose(r)}><span>⌖</span><div><b>{r.label.split(',')[0]}</b><small>{r.label}</small></div></button>)}</div>}
+      <div className="trip-box">
+        <div className="trip-row-start">
+          <span className="start-dot"/>
+          <div><small>Départ</small><b title={start.label}>{start.label}</b></div>
+          <button type="button" className={start.mode === 'gps' ? 'on' : ''} onClick={useMyPosition} disabled={locating} aria-label="Partir de ma position">⌖ <span>{locating ? '…' : 'Ma position'}</span></button>
+          <button type="button" className={pickStart ? 'on' : ''} onClick={() => setPickStart(v => !v)} aria-pressed={pickStart} aria-label="Choisir le départ sur la carte">◎ <span>Carte</span></button>
+        </div>
+        <div className="trip-row-dest">
+          <span className="dest-dot"/>
+          <div><small>Destination</small><PlaceSearch value={query} onValueChange={setQuery} onChoose={r => choose({ label: r.name, lat: r.lat, lon: r.lon, detail: placeDetail(r) })} onClear={clearDestination}/></div>
+        </div>
+      </div>
+      {pickStart && <div className="pick-hint">Touchez la carte pour choisir le point de départ <button type="button" onClick={() => setPickStart(false)}>Annuler</button></div>}
     </div>
-    {notice && <div className="realtime-toast"><i/> {notice}</div>}
-    {!dest && <div className="nav-welcome"><span>Carte des incidents · Bizerte</span><h1>Voyagez avec une route vérifiée.</h1><p>Choisissez une destination. THNIYETNA compare le trajet rapide aux alternatives OSRM et tient compte des événements routiers enregistrés.</p><div className="quick-destinations">{QUICK.map((q, i) => <button key={i} onClick={() => choose({ label: q[0], lat: q[1], lon: q[2] })}>{q[0]}</button>)}</div></div>}
-    {dest && !plan && <div className="citizen-route-sheet pre-analysis"><div className="sheet-handle"/><div className="route-summary"><div><small>Destination sélectionnée</small><b>{query}</b></div><span className="gps-ready">GPS prêt</span></div><p className="analysis-copy">L’analyse utilise les incidents réellement enregistrés dans la plateforme.</p><button className="analyze-route-btn" onClick={analyze} disabled={loading}>{loading ? <>Analyse du trajet…</> : <>Analyser le trajet <span>→</span></>}</button></div>}
-    {plan && <div className="citizen-route-sheet"><div className="sheet-handle"/><div className="route-summary"><div><small>GPS → destination</small><b>{query}</b></div><strong>{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>{plan.reroute_needed ? <><div className="route-alert"><span>!</span><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)}% · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div><div className="route-recommend"><span>✓</span><div><b>Alternative plus sûre calculée</b><small>{(plan.distance_m / 1000).toFixed(1)} km · {Math.round(plan.duration_s / 60)} min · risque {Math.round((plan.risk || 0) * 100)}%</small></div></div><div className="route-legend"><i className="red"/> Trajet initial <i className="green"/> Alternative OSRM</div></> : <div className="route-recommend"><span>✓</span><div><b>Trajet vérifié</b><small>{(plan.distance_m / 1000).toFixed(1)} km · aucun détour plus sûr nécessaire</small></div></div>}<button className="secondary-route-btn" onClick={analyze}>Recalculer</button></div>}
+    {notice && <div className="realtime-toast" onClick={() => setNotice('')}><i/> {notice}</div>}
+    {!dest && <div className="nav-welcome"><span>Carte des incidents · Bizerte</span><h1>Voyagez avec une route vérifiée.</h1><p>Recherchez un lieu, une rue ou un établissement, ou touchez la carte pour choisir votre destination. THNIYETNA compare le trajet rapide aux alternatives OSRM et tient compte des événements routiers enregistrés.</p><div className="quick-destinations">{QUICK.map((q, i) => <button key={i} onClick={() => choose({ label: q[0], lat: q[1], lon: q[2], detail: 'Raccourci' })}>{q[0]}</button>)}</div></div>}
+    {dest && !plan && <div className="citizen-route-sheet pre-analysis"><div className="sheet-handle"/><div className="route-summary"><div><small>Destination sélectionnée</small><b>{dest.label}</b>{dest.detail && <em className="dest-detail">{dest.detail}</em>}</div>{!outOfZone && <span className="gps-ready">{start.mode === 'gps' ? 'GPS prêt' : 'Départ prêt'}</span>}</div>
+      {outOfZone || routeError
+        ? <div className="route-alert route-error" role="alert"><span>!</span><div><b>{outOfZone ? OUT_OF_ZONE : routeError}</b><small>Choisissez un point dans le gouvernorat de Bizerte.</small></div></div>
+        : <p className="analysis-copy">Départ : {start.label}. L’analyse utilise les incidents réellement enregistrés dans la plateforme.</p>}
+      <button className="analyze-route-btn" onClick={analyze} disabled={loading || outOfZone}>{loading ? <>Analyse du trajet…</> : <>Analyser le trajet <span>→</span></>}</button></div>}
+    {plan && <div className="citizen-route-sheet"><div className="sheet-handle"/><div className="route-summary"><div><small>{start.mode === 'gps' ? 'GPS' : 'Départ'} → destination</small><b>{dest.label}</b></div><strong>{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>{plan.reroute_needed ? <><div className="route-alert"><span>!</span><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)}% · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div><div className="route-recommend"><span>✓</span><div><b>Alternative plus sûre calculée</b><small>{(plan.distance_m / 1000).toFixed(1)} km · {Math.round(plan.duration_s / 60)} min · risque {Math.round((plan.risk || 0) * 100)}%</small></div></div><div className="route-legend"><i className="red"/> Trajet initial <i className="green"/> Alternative OSRM</div></> : <div className="route-recommend"><span>✓</span><div><b>Trajet vérifié</b><small>{(plan.distance_m / 1000).toFixed(1)} km · aucun détour plus sûr nécessaire</small></div></div>}<button className="secondary-route-btn" onClick={analyze}>Recalculer</button></div>}
     <Link className="floating-report" to="/citizen/report">＋ <span>Signaler</span></Link>
     <BottomNav kind="citizen"/>
   </div>;

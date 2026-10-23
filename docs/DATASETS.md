@@ -10,4 +10,5 @@ Dataset version, split seed, selected countries and local Tunisia pilot data mus
 be recorded with every benchmark.
 
 ## OSM
-The routing service uses the prepared Bizerte OSRM graph under `data/osm/`.
+The routing service uses the prepared Bizerte OSRM graph under `data/osm/`. The citizen destination search uses the `places` table (Alembic 0007), built from the same
+`data/osm/bizerte.osm.pbf` by `scripts/build_places_index.py` (see CLAUDE.md).
