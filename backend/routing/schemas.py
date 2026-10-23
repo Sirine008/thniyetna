@@ -23,6 +23,14 @@ class RouteCandidate(BaseModel):
     scored_segments: int = 0
 
 
+class HazardInfo(BaseModel):
+    type: str
+    latitude: float
+    longitude: float
+    risk: float
+    distance_m: float  # true distance from the hazard to the fastest route
+
+
 class RouteResponse(BaseModel):
     route_id: str
     status: str
@@ -42,6 +50,11 @@ class RouteResponse(BaseModel):
     hazards_on_best: int = 0
     fastest_segment_risk: float = 0
     best_segment_risk: float = 0
+    warning: bool = False          # risk >= 0.42 but no eligible alternative: driver is warned
+    hazards: List[HazardInfo] = []  # hazards that made the fastest route exceed 0.42
+    eligible_alternatives: int = 0             # alternatives that avoid every triggering hazard
+    best_eligible_risk: Optional[float] = None  # lowest risk among them (rerouted only if 0.12 safer)
+    logic_version: str = "m3-v2"
 
 
 class RouteCreate(BaseModel):

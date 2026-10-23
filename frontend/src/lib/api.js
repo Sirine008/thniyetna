@@ -103,6 +103,7 @@ export function openRealtime(onEvent, onStatus) {
     'route.updated',
     'route.assignment',
     'driver.reroute.alert',
+    'driver.route.warning',
   ].forEach(topic => es.addEventListener(topic, event => {
     try {
       onEvent(topic, JSON.parse(event.data));

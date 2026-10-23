@@ -7,6 +7,10 @@ Aucune donnée ni aucun code n'ont été modifiés ; le LLM n'a pas été appel�
 > **Mise à jour du 23/10/2026 (M1).** Les lignes M1 et celles marquées *(23/10)* ont été mises à jour après la mise
 > en service du détecteur pré-entraîné `yolo26s-rdd2022-dronefreak` et une boucle complète citoyen → M1 → validation
 > → M2 → fiche d'intervention. Détails : `docs/M1_MODEL_CARD.md`. Le reste du document reflète toujours l'audit du 15/10.
+>
+> **Mise à jour du 23/10/2026 (M3).** Graphe OSRM étendu à tout le gouvernorat ; données de démo
+> (`scripts/seed_demo.py`) ; règle de déviation corrigée (mesure vraie des dangers, alternative obligée d'éviter les
+> dangers déclencheurs, recherche autour des dangers, avertissement sans alternative). Décision : `docs/DECISIONS.md` (D-001).
 
 ## a) Résumé
 
@@ -66,10 +70,10 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 
 | Fonctionnalité | Statut | Preuve | Ce qui reste |
 |---|---|---|---|
-| Calcul d'itinéraire OSRM (Bizerte) | ✅ | `POST /routing/route` (centre → sud) → 200, 5 655,5 m, 512,7 s, `normal_route` ; OSRM direct `:5002` → `Ok` | — |
-| Coût tenant compte du risque + déviation | 🟡 | `tests/test_routing_m2_risk.py` : 4 réussis (image `api`) ; en direct, risque 0,004 donc aucune déviation | Démonstration avec un segment réellement à risque |
-| Lignes officielles et affectations | 🟠 | `GET /routing/official-routes` → 0 ; `GET /routing/assignments` → 0 | Créer de vraies lignes / bus / affectations (non testé : écriture) |
-| Alerte de déviation conducteur | 🟡 | Couvert par `test_routing_m2_risk.py` ; `GET /platform/alerts` (conducteur) → 200, 5 lignes (`risk.batch_updated`) | Démonstration en direct avec une affectation |
+| Calcul d'itinéraire OSRM (Bizerte) | ✅ | *(23/10)* Graphe reconstruit pour tout TN-23 (`scripts/osm-clip-bizerte.sh`) : Bizerte → Menzel Bourguiba 23,6 km, Mateur 40,5 km, Ras Jebel 36,6 km, Zarzouna 3,1 km (avant : île séparée / hors graphe) | OSRM ne renvoie aucune alternative native sur ces trajets : toutes viennent de la recherche de détours de M3 |
+| Coût tenant compte du risque + déviation | ✅ | *(23/10)* Règle corrigée (D-001) : distance vraie PostGIS, alternative éligible seulement si elle évite à > 105 m chaque danger déclencheur, détours cherchés autour des dangers ; seuils 0,42 / 0,12 inchangés. `tests/test_routing_event_reroute.py` 9 + `test_routing_m2_risk.py` 5 réussis (image `api`). Test d'isolement : déviation de 28,2 km à 1 397 m du danger (0,774 → 0,193) | Données de démo : corridor RN11 trop chargé, donc avertissements plutôt que déviations |
+| Lignes officielles et affectations | 🟡 | *(23/10)* 4 lignes de démo `DEMO-L1…L4` et leurs affectations, créées par l'API (`scripts/seed_demo.py`) | Lignes réelles SRTB |
+| Alerte conducteur (déviation / avertissement) | ✅ | *(23/10)* Les 4 lignes de démo : `driver.route.warning` « Danger sur l'itinéraire — aucune alternative sûre » avec la liste des dangers (risque 0,70–0,80, 2 à 12 dangers sur le trajet). L'ancienne alerte L2 (logique m3-v1, alternative passant à 0 m de 12 dangers) est conservée, marquée `superseded`. Pages `/driver` et `/driver/alerts` vérifiées en navigateur headless | Temps de réponse 0,2–4,5 s par contrôle de ligne |
 | Géocodage | ✅ | `GET /routing/geocode?q=Corniche` → 2 résultats (Nominatim public, nécessite Internet) | — |
 
 ### M4 — Plateforme web
@@ -149,7 +153,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | 2 | Valider le jeu de questions RAG et les étiquettes manuelles (Sirine) | S | Non |
 | 3 | Corriger l'heuristique des titres, relancer `rag.ingest --contexts`, puis évaluer `fts_french` → `chunk_context` → `confidence_gate` → `numbers_rule` (+ `combined_gemma4` si la RAM le permet) | M | Non |
 | 4 | Recette manuelle des écrans dans un navigateur (citoyen, conducteur, deux superviseurs, Assistant, impression de la fiche) | S | Non |
-| 5 | Saisir de vraies lignes, bus et affectations pour démontrer la déviation conducteur (M3/M4) | S | Non |
+| 5 | *(23/10 : lignes de démo + règle M3 corrigée)* Saisir les vraies lignes SRTB ; démontrer une déviation sur une ligne dont le corridor a une route de contournement | S | Non |
 | 6 | *(23/10 : boucle démontrée sur 1 segment, P2 + fiche avec défaut)* Accumuler des événements validés, puis entraîner le modèle d'état « mode B » (≥ 50 positifs) | M | Non |
 | 7 | Faire tourner les tests FastAPI dans la CI / l'image de test et vérifier les exécutions GitHub | S | Petit téléchargement (pytest) |
 | 8 | Réactiver un calque de risque lisible sur la carte | S | Non |

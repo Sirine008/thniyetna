@@ -549,7 +549,8 @@ class Seeder:
         say("M3 route checks (POST /routing/driver/next-best as each driver):")
         for code, start, end, bus, driver in LINES:
             had = self.q1("""SELECT count(*) FROM notification_outbox
-                             WHERE topic='driver.reroute.alert' AND recipient_ref=%s""", driver)
+                             WHERE topic IN ('driver.reroute.alert','driver.route.warning') AND recipient_ref=%s
+                               AND NOT coalesce((payload->>'superseded')::boolean,false)""", driver)
             if had and not self.args.recheck:
                 say(f"  {code}: {driver} already has {had} alert(s), skipped (--recheck to run again)")
                 continue
@@ -562,6 +563,8 @@ class Seeder:
             say(f"  {code}: {res['status']} (initial risk {res['fastest_risk']:.2f}, best {res['risk']:.2f}) — {res['reason']}")
             if res["reroute_needed"]:
                 self.count("notification_outbox (driver.reroute.alert)")
+            elif res.get("warning"):
+                self.count("notification_outbox (driver.route.warning)")
 
     def run(self):
         self.preflight()
@@ -611,12 +614,15 @@ def summary(cx, created: dict | None = None):
             WHERE l.segment_id IN (SELECT segment_id FROM road_events WHERE coalesce((payload->>'demo')::boolean,false))
             ORDER BY l.risk_score DESC""").fetchall():
         say(f"  segment with demo event {seg}: {lvl} / {prio} / {cond} ({score})")
-    alerts = cx.execute("""SELECT r.route_code, o.recipient_ref, o.payload->>'reason', round((o.payload->>'risk')::numeric,2), o.created_at
+    alerts = cx.execute("""SELECT r.route_code, o.recipient_ref || CASE WHEN o.topic='driver.route.warning' THEN ', avertissement'
+                                   WHEN coalesce((o.payload->>'superseded')::boolean,false) THEN ', ancienne logique' ELSE ', déviation' END,
+                               o.payload->>'reason', round((o.payload->>'risk')::numeric,2), o.created_at
         FROM notification_outbox o
         LEFT JOIN route_assignments ra ON ra.driver_username=o.recipient_ref AND ra.active
         LEFT JOIN official_routes r ON r.id=ra.route_id
-        WHERE o.topic='driver.reroute.alert' AND o.recipient_ref LIKE 'demo.%%' ORDER BY r.route_code""").fetchall()
-    say(f"M3 reroute alerts for demo drivers: {len(alerts)}")
+        WHERE o.topic IN ('driver.reroute.alert','driver.route.warning') AND o.recipient_ref LIKE 'demo.%%'
+        ORDER BY r.route_code, o.created_at""", ()).fetchall()
+    say(f"M3 alerts for demo drivers (reroute + warning): {len(alerts)}")
     for code, driver, reason, risk, at in alerts:
         say(f"  {code} ({driver}): initial risk {risk} — {reason}")
     say("logins (passwords: data/demo/demo_accounts.json; supervisors: BOOTSTRAP_PASSWORD in .env):")

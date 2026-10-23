@@ -74,17 +74,36 @@ def test_severe_event_on_fastest_route_reroutes_around_it_and_alerts_the_driver(
     assert [p["topic"] for p in published] == ["driver.reroute.alert"]
     alert = published[0]
     assert alert["recipient"] == "demo.driver1" and alert["payload"]["vehicle_id"] == "DEMO-BUS-01"
-    assert alert["payload"]["risk"] == res.fastest_risk and "danger" in alert["payload"]["reason"]
+    assert alert["payload"]["risk"] == res.fastest_risk
+    # consistent counts: the alternative avoids the event, the initial route has it
+    assert res.reason.startswith("1 danger(s) sur le trajet initial, 0 sur l'alternative ; risque ")
+    assert alert["payload"]["hazards_on_initial"] == 1 and alert["payload"]["hazards_on_alternative"] == 0
+    assert alert["payload"]["logic_version"] == "m3-v2"
 
 
-def test_no_alert_when_every_alternative_crosses_the_same_event(m3):
-    # NORTH_VIA_EVENT goes north but comes back through the event: not 0.12 safer -> keep the route
+def test_warning_without_reroute_when_every_alternative_crosses_the_event(m3):
+    # the alternative goes north but comes back through the event: no eligible alternative
     via = [[37.270, 9.850], [37.280, 9.850], [37.280, 9.865], [37.270, 9.865], [37.270, 9.880]]
     published = m3([EVENT], [osrm(DIRECT, 300), osrm(via, 420)], detours=[osrm(via, 420)])
     res = R.driver_next_best(REQ, FakeDB(), DRIVER)
     assert res.fastest_risk >= 0.42
     assert not res.reroute_needed and res.polyline == DIRECT
-    assert published == []
+    assert res.warning and res.status == "warning"
+    assert [(h.type, h.latitude, h.longitude, h.risk) for h in res.hazards] == [("pothole", 37.270, 9.865, 0.9)]
+    assert [p["topic"] for p in published] == ["driver.route.warning"]
+    warning = published[0]
+    assert warning["recipient"] == "demo.driver1"
+    assert warning["payload"]["title"] == "Danger sur l'itinéraire — aucune alternative sûre"
+    assert warning["payload"]["reason"].startswith("Danger sur l'itinéraire — aucune alternative sûre : 1 danger(s)")
+    assert warning["payload"]["hazards"][0]["type"] == "pothole" and warning["payload"]["hazards"][0]["distance_m"] < 1
+
+
+def test_no_alert_below_042(m3):
+    weak = {**EVENT, "risk": 0.3}
+    published = m3([weak], [osrm(DIRECT, 300), osrm(NORTH, 420)])
+    res = R.driver_next_best(REQ, FakeDB(), DRIVER)
+    assert res.fastest_risk < 0.42 and not res.reroute_needed and not res.warning
+    assert res.status == "normal_route" and published == []
 
 
 def test_alternative_crossing_the_event_between_sparse_vertices_is_not_safer(m3):
@@ -95,7 +114,8 @@ def test_alternative_crossing_the_event_between_sparse_vertices_is_not_safer(m3)
     assert min_vertex_distance_m(sparse, EVENT) > 105  # what vertex sampling sees, although the line passes 0 m away
     published = m3([EVENT], [osrm(DIRECT, 300), osrm(sparse, 480)])
     res = R.driver_next_best(REQ, FakeDB(), DRIVER)
-    assert not res.reroute_needed and published == []
+    assert not res.reroute_needed
+    assert [p["topic"] for p in published] == ["driver.route.warning"]  # not a reroute alert
 
 
 def test_hazard_distance_is_measured_to_the_route_line_in_postgis():
@@ -169,3 +189,13 @@ def test_grid_different_enough_matches_the_brute_force_definition():
         shift = rng.choice([0.0, 0.0002, 0.0004, 0.0006, 0.002])
         other = [[lat + rng.uniform(-shift, shift), lon + rng.uniform(-shift, shift)] for lat, lon in base]
         assert R._different_enough(base, other) == brute(base, other)
+
+
+def test_response_reports_eligible_alternatives(m3):
+    via = [[37.270, 9.850], [37.280, 9.850], [37.280, 9.865], [37.270, 9.865], [37.270, 9.880]]
+    m3([EVENT], [osrm(DIRECT, 300), osrm(via, 420)], detours=[osrm(via, 420)])
+    res = R.get_route(REQ, None)
+    assert res.eligible_alternatives == 0 and res.best_eligible_risk is None
+    m3([EVENT], [osrm(DIRECT, 300), osrm(NORTH, 420)])
+    res = R.get_route(REQ, None)
+    assert res.eligible_alternatives == 1 and res.best_eligible_risk == res.risk == 0.0

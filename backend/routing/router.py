@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from .schemas import RouteRequest, RouteResponse, RouteCandidate
+from .schemas import RouteRequest, RouteResponse, RouteCandidate, HazardInfo
 from .schemas import RouteCreate, AssignmentCreate
 from shared.db import get_db
 from shared.auth import require_role
@@ -93,6 +93,7 @@ def _segment_risk(db,line):
 HAZARD_RADIUS_M=105
 REROUTE_MIN_RISK=.42   # the fastest route needs a new route above this risk
 REROUTE_MIN_GAIN=.12   # an alternative must be at least this much safer
+WARNING_TITLE="Danger sur l'itinéraire — aucune alternative sûre"
 # True distance (geography, metres) from each hazard to the whole route LineString. Measuring to route
 # vertices missed hazards lying between two far-apart vertices (OSRM puts few on straight roads).
 _HAZARD_DISTANCE_SQL=text("""
@@ -267,6 +268,10 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
         if not any(not _different_enough(candidate.polyline,existing.polyline) for existing,_ in unique):
             unique.append((candidate,near))
 
+    eligible=[candidate for candidate,near in unique
+              if candidate.polyline != fastest.polyline
+              and _different_enough(fastest.polyline,candidate.polyline)
+              and not (trigger & near.keys())]  # avoids every triggering hazard
     safer_pair=next((
         (candidate,near) for candidate,near in unique
         if candidate.polyline != fastest.polyline
@@ -278,23 +283,30 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
     reroute=safer_pair is not None and fastest.risk >= REROUTE_MIN_RISK
     best,best_near=safer_pair if reroute else (fastest,fast_near)
     fast_count,best_count=len(fast_near),len(best_near)
+    warning=not reroute and fastest.risk >= REROUTE_MIN_RISK
+    counts=f"{fast_count} danger(s) sur le trajet initial, {best_count} sur l'alternative"
     if reroute and fastest.segment_risk > fastest.hazard_risk:
-        reason=(
-            f"Le trajet initial emprunte des segments à risque M2 élevé ({fastest.segment_risk:.0%}) ; "
-            f"l'alternative ramène le risque à {best.risk:.0%}."
-        )
+        reason=(f"Segments à risque M2 élevé ({fastest.segment_risk:.0%}) sur le trajet initial ; "
+                f"{counts} ; risque {fastest.risk:.0%} → {best.risk:.0%}.")
     elif reroute:
-        reason=(
-            f"{fast_count} danger(s) routier(s) affectent le trajet initial ; "
-            f"l'alternative réduit l'exposition à {best_count}."
-        )
+        reason=f"{counts} ; risque {fastest.risk:.0%} → {best.risk:.0%}."
+    elif warning:
+        cause=(f"{fast_count} danger(s) sur le trajet initial" if fast_count
+               else f"segments à risque M2 élevé ({fastest.segment_risk:.0%})")
+        reason=(f"{WARNING_TITLE} : {cause}, risque {fastest.risk:.0%} ; "
+                f"aucun itinéraire ne les évite (à plus de {HAZARD_RADIUS_M} m) en étant au moins "
+                f"{REROUTE_MIN_GAIN:.0%} plus sûr.")
     else:
-        reason="Itinéraire normal conservé : aucune alternative ne réduit suffisamment le risque."
+        reason=f"Itinéraire normal conservé : risque {fastest.risk:.0%}, sous le seuil de {REROUTE_MIN_RISK:.0%}."
+    listed=sorted(trigger,key=lambda i:-_exposure(hazards[i],fast_near[i]))
+    hazard_info=[HazardInfo(type=str(hazards[i].get("event_type") or "hazard"),latitude=float(hazards[i]["lat"]),
+                            longitude=float(hazards[i]["lon"]),risk=round(float(hazards[i].get("risk") or .5),3),
+                            distance_m=round(fast_near[i],1)) for i in listed]
     alternatives=[candidate for candidate,_ in unique if candidate.polyline != best.polyline][:4]
 
     return RouteResponse(
         route_id=str(uuid4()),
-        status="rerouted" if reroute else "normal_route",
+        status="rerouted" if reroute else ("warning" if warning else "normal_route"),
         risk=best.risk,
         polyline=best.polyline,
         score=best.score,
@@ -311,6 +323,10 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
         hazards_on_best=best_count,
         fastest_segment_risk=fastest.segment_risk,
         best_segment_risk=best.segment_risk,
+        warning=warning,
+        hazards=hazard_info,
+        eligible_alternatives=len(eligible),
+        best_eligible_risk=min((c.risk for c in eligible),default=None),
     )
 
 @router.get("/geocode")
@@ -350,6 +366,13 @@ def driver_route(db:Session=Depends(get_db),user=Depends(require_role("bus_drive
 @router.post("/driver/next-best",response_model=RouteResponse)
 def driver_next_best(req:RouteRequest,db:Session=Depends(get_db),user=Depends(require_role("bus_driver"))):
     response=get_route(req,db)
+    common={"vehicle_id":req.vehicle_id,"risk":response.fastest_risk,"reason":response.reason,
+            "route_id":response.route_id,"hazards_on_initial":response.hazards_on_initial,
+            "logic_version":response.logic_version}
     if response.reroute_needed:
-        publish(db,"driver.reroute.alert",{"vehicle_id":req.vehicle_id,"risk":response.fastest_risk,"reason":response.reason,"route_id":response.route_id},user["sub"]); db.commit()
+        publish(db,"driver.reroute.alert",{**common,"hazards_on_alternative":response.hazards_on_best,
+                                            "alternative_risk":response.risk},user["sub"]); db.commit()
+    elif response.warning:
+        publish(db,"driver.route.warning",{**common,"title":WARNING_TITLE,
+                                            "hazards":[h.model_dump() for h in response.hazards]},user["sub"]); db.commit()
     return response
