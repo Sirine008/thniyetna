@@ -4,14 +4,19 @@ Audit en lecture seule du **15/10/2026 (16 h 45)**, sur le commit **`fb046eb`** 
 Aucune donnée ni aucun code n'ont été modifiés ; le LLM n'a pas été appelé pendant l'audit (pas d'appel à
 `/assistant/ask` ni à `/assistant/intervention`).
 
+> **Mise à jour du 23/10/2026 (M1).** Les lignes M1 et celles marquées *(23/10)* ont été mises à jour après la mise
+> en service du détecteur pré-entraîné `yolo26s-rdd2022-dronefreak` et une boucle complète citoyen → M1 → validation
+> → M2 → fiche d'intervention. Détails : `docs/M1_MODEL_CARD.md`. Le reste du document reflète toujours l'audit du 15/10.
+
 ## a) Résumé
 
 1. La pile Docker tourne. `db` et `api` sont *healthy* ; `osrm`, `web` et `m2-worker` sont démarrés (sans healthcheck) ;
    `perception-worker` (M1) et `mlflow` ne sont pas lancés.
 2. **M2** fonctionne de bout en bout : modèle `2026.10.11-2054` chargé, 675 segments notés et 192 prévisions par
    gouvernorat (24 × 8 jours). Faute d'événements M1, tout le risque absolu est faible (max 0,183934).
-3. **M1 est bloqué** : il n'y a aucun checkpoint YOLO dans `models/`. Le worker n'est pas lancé, 2 jobs attendent
-   (`queued`) depuis le 14/10, et la base contient 0 événement routier.
+3. **M1 fonctionne (23/10)** avec un modèle public pré-entraîné (YOLO26s RDD2022, dronefreak, AGPL-3.0) sur CPU.
+   Boucle vérifiée en direct : 1 signalement citoyen → 1 événement validé → le segment OSM-100663969 passe de
+   faible / P3 à **moyen / P2 / « poor »**. Mais les nids-de-poule des photos rapprochées ne sont pas détectés (0/7 sur le pilote).
 4. **M3/M4/M5** : routage OSRM, authentification par rôles, temps réel (SSE) et application web sont vérifiés en direct.
    En revanche, il n'y a encore ni ligne officielle, ni bus, ni affectation, donc pas de démonstration de déviation.
 5. **Assistant RAG** : 4 guides (582 extraits), interface parties A et B en place. Qualité des réponses de
@@ -35,10 +40,10 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 
 | Fonctionnalité | Statut | Preuve | Ce qui reste |
 |---|---|---|---|
-| Détection de défauts (YOLO, RDD2022) | ❌ | `models/` ne contient que `m2/` ; `models/README.md` : aucun poids fourni | Entraîner/évaluer YOLO26n/s et YOLO11n (`ml/perception/train_detector.py`), copier `road-damage-yolo26n.pt` |
-| Worker de perception (file de jobs) | ❌ | `perception-worker` absent de `docker compose ps` (profil `m1`) ; base : 2 `perception_jobs` en `queued` depuis le 14/10 18:53 UTC | Lancer le profil `m1` une fois le checkpoint présent |
-| Code du pipeline (vidéo, GPS, fusion d'observations) | 🟡 | `ml/perception/tests/test_core.py` : 2 tests réussis ; pas d'exécution réelle | Mesures mAP, latence, jeu pilote tunisien (`docs/work-packages/M1.md`) |
-| Événements routiers + liste superviseur | 🟠 | `GET /perception/events` → 200, 0 ligne ; `road_events` = 0, `road_observations` = 0 | Données réelles ; validation (`PATCH …/validate`) non testée en direct (écriture) |
+| Détection de défauts (YOLO, RDD2022) | 🟠 | *(23/10)* `models/road-damage-yolo26s.pt` = modèle public dronefreak (SHA-256 dans `models/README.md`) ; `check_m1_model.py` : 4 classes = `RDD_CLASS_MAP` ; métriques publiées **par l'auteur** (mAP50 61,27 %, sur son propre découpage) ; CPU p50 140 ms, 4,7 img/s (i7-1255U) ; pilote de 14 photos : 0/7 nid-de-poule détecté, fissure détectée, 1 faux positif sur 5 routes intactes | Jeu pilote de Bizerte pris depuis un véhicule et étiqueté → mAP local ; ré-entraînement si le rappel des nids-de-poule reste faible (`docs/M1_MODEL_CARD.md`) |
+| Worker de perception (file de jobs) | ✅ | *(23/10)* `perception-worker` lancé (profil `m1`, CPU, torch `+cpu`) ; job citoyen traité en 1,9 s. Les 2 jobs du 14/10 sont marqués `failed` avec la raison (même photo de banque d'images envoyée 5 fois par le compte de test `root`, hors segment) ; rien n'a été supprimé | Healthcheck du worker |
+| Code du pipeline (vidéo, GPS, fusion d'observations) | 🟡 | `ml/perception/tests/test_core.py` : 5 tests ; chemin image vérifié en direct (23/10) ; vidéo + GPS non exécutés en réel | Session d'inspection réelle avec vidéo |
+| Événements routiers + liste superviseur | ✅ | *(23/10)* 1 observation + 1 `road_event` (alligator_crack, conf 0,354, sévérité 0,7264) sur OSM-100663969 ; `PATCH /perception/events/{id}/validate` (equipment.supervisor) → 200, `validated` | Plus de données réelles |
 | Sessions d'inspection (start / heartbeat / stop) | 🟠 | Code + API (`perception/router.py`) ; `GET /perception/inspections` → 200, 0 session | Aucune page web pour le véhicule d'inspection ; non testé en direct (écriture) |
 
 ### M2 — Prédiction du risque
@@ -47,13 +52,14 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 |---|---|---|---|
 | Modèle chargé par l'API | ✅ | `GET /prediction/model` → `status ok`, version `2026.10.11-2054`, classifieur `logreg` | — |
 | Prévisions par gouvernorat | ✅ | `GET /prediction/governorates` → 192 lignes nommées, 24 gouvernorats, 8 jours (15→22/10), 116 alertes | Vérifier si ce taux d'alerte élevé est utile en pratique |
-| Score de risque par segment (RiskScore 1.1.0) | ✅ | `GET /prediction/segments` → 675 segments, max 0,183934 ; `?min_level=medium` → 0 ; `?top=0.05` → 34 | Un risque absolu plus contrasté demande des événements M1 |
-| Priorités d'entretien | ✅ | Base : 271 P3 et 404 P4, tous `no_observed_defect` / `low` | Pas de P1/P2 sans défaut observé |
+| Score de risque par segment (RiskScore 1.1.0) | ✅ | *(23/10)* 675 segments ; OSM-100663969 : 0,1837 → **0,3940 (medium)** après l'événement M1 validé (composante état 0,2576, facteur principal `m1:road_condition`) ; les 674 autres `low` | Un risque absolu plus contrasté demande plus d'événements M1 |
+| Priorités d'entretien | ✅ | *(23/10)* 1 P2 « poor » (OSM-100663969), 270 P3, 404 P4 | — |
+| Prise en compte des événements du jour | ✅ | *(23/10)* Corrigé : `score.py` coupait les événements à minuit, donc un événement du jour n'était compté qu'au passage du lendemain. Maintenant, la limite est l'heure du calcul (`segment_cutoff`), et `--as-of` garde minuit. Test `test_same_day_m1_event_counts_in_todays_pass` ; image `m2-worker` reconstruite | — |
 | Worker M2 (passe de scoring) | ✅ | `m2-worker` démarré ; scores créés le 15/10 12:36 UTC, valables jusqu'au 16/10 | — |
 | Données d'entraînement | ✅ | Base : `accident_records` ≈ 69 394, `weather_observations` ≈ 1 652, 24 `admin_areas` | L'export accidents s'arrête au 27/09/2026 (`docs/M2_MODEL_CARD.md`) |
 | Pipeline d'entraînement | 🟡 | `ml/prediction/tests/test_m2_core.py` : 34 tests réussis ; carte `docs/M2_MODEL_CARD.md` (test PR-AUC 0,6111) | — |
 | Expérience météo par gouvernorat | ✅ | `docs/M2_WEATHER_EXPERIMENT.md` : résultat négatif, modèle de base conservé (14/10) | — |
-| Modèle d'état « mode B » | ❌ | Bloqué : nécessite des défauts M1 étiquetés (`condition_model.py`, CLAUDE.md) | Après M1 |
+| Modèle d'état « mode B » | ❌ | Nécessite ≥ 50 défauts M1 positifs (`condition_model.py`, CLAUDE.md) ; 1 événement en base (23/10) | Accumuler des événements validés |
 | Suivi MLflow | 🟠 | Service `mlflow` (profil `ml`) non lancé ; l'expérience du 14/10 a utilisé des enregistrements JSON | Lancer le profil `ml` si besoin |
 
 ### M3 — Routage
@@ -99,7 +105,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 |---|---|---|---|
 | Corpus indexé (guides terrain seulement) | ✅ | `GET /assistant/status` → 4 documents, 582 extraits ; Ollama joignable, `llama3.2:3b` et `nomic-embed-text` présents | Ajouter un guide utilisateur dans `data/rag/corpus/` |
 | Question / réponse citée (`/assistant/ask`) | ✅ | Vérifié en direct le 15/10 avant l'audit (35,7 s, 4 sources avec extraits ; CLAUDE.md) ; **pas rappelé pendant l'audit** | Qualité des réponses (voir limites) |
-| Fiche d'intervention | ✅ | Vérifiée en direct le 15/10 avant l'audit (segment P3 OSM-100663969, 58,5 s puis 13,8 s) ; tests `test_rag_api.py` 8/8 et `test_rag_intervention.py` 6/6 | Recette d'un segment avec défaut (aucun en base) |
+| Fiche d'intervention | ✅ | *(23/10)* Segment avec défaut OSM-100663969 (P2) : 200 en 100 s ; le Constat cite la détection M1 validée et le signalement ; les 3 sections de conseils sont marquées `uncited` (llama3.2:3b sans [n]) | Citations des conseils |
 | Onglet « Assistant » et fiche imprimable | 🟠 | Bundle servi contenant les libellés et la règle `@media print` ; pas de clic en navigateur | Recette manuelle |
 | Évaluation | 🟠 | `docs/RAG_EVALUATION.md` : 4 variantes exécutées et étiquetées ; 5 non exécutées | Lancer `combined_gemma4`, `fts_french`, `chunk_context`, `confidence_gate`, `numbers_rule` |
 | Options A.6 (FTS français, contexte, porte de confiance, règle des nombres) | 🟡 | Tests unitaires ; index cohérent (582/582 `embedding_ctx`) ; non évaluées | Corriger l'heuristique des titres avant `chunk_context` |
@@ -119,8 +125,9 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 
 | Limite | Source |
 |---|---|
-| M1 n'a aucun checkpoint : aucune détection automatique possible | `models/README.md`, `docker compose ps` |
-| Sans événements M1, le risque absolu M2 est faible partout (max 0,183934) ; les priorités sont P3 (271) ou P4 (404), toutes « aucun défaut observé » | Base `risk_scores`, `GET /prediction/segments` |
+| *(23/10)* M1 utilise un modèle public non entraîné sur des routes tunisiennes ; nids-de-poule des photos rapprochées non détectés (0/7), toutes les confiances < 0,40 ; aucun mAP local ; la sévérité est un indicateur visuel | `docs/M1_MODEL_CARD.md` |
+| *(23/10)* Poids sous licence AGPL-3.0 (obligations en cas de service réseau public) | `docs/M1_MODEL_CARD.md`, `models/README.md` |
+| Un seul événement M1 en base : le risque absolu M2 reste faible ailleurs (674 segments `low`) | Base `risk_scores` |
 | Pas de coordonnées GPS dans les accidents : le risque par segment est une répartition de l'exposition, pas un modèle de point noir | `docs/M2_MODEL_CARD.md` |
 | Dans un même gouvernorat, la date d'un accident est presque imprévisible (ROC-AUC médian 0,524) ; l'historique porte l'essentiel du signal | `docs/M2_MODEL_CARD.md`, `docs/M2_WEATHER_EXPERIMENT.md` |
 | L'export des accidents s'arrête au 27/09/2026 (retard sur la date de scoring) | `docs/M2_MODEL_CARD.md` |
@@ -138,12 +145,12 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 
 | # | Tâche | Taille | Wi-Fi ? |
 |---|---|---|---|
-| 1 | Entraîner et évaluer le détecteur M1 (RDD2022, YOLO26n/s, YOLO11n), déposer le checkpoint, lancer le profil `m1` et traiter les 2 jobs en attente | L | **Oui** (jeu RDD2022 de plusieurs Go, torch / ultralytics) |
+| 1 | *(23/10, en partie fait)* Modèle pré-entraîné en service. Reste : jeu pilote de Bizerte (photos prises depuis un véhicule, étiquetées) → mAP local ; ré-entraîner (RDD2022 + images locales) si le rappel des nids-de-poule reste faible | L | **Oui** pour le ré-entraînement |
 | 2 | Valider le jeu de questions RAG et les étiquettes manuelles (Sirine) | S | Non |
 | 3 | Corriger l'heuristique des titres, relancer `rag.ingest --contexts`, puis évaluer `fts_french` → `chunk_context` → `confidence_gate` → `numbers_rule` (+ `combined_gemma4` si la RAM le permet) | M | Non |
 | 4 | Recette manuelle des écrans dans un navigateur (citoyen, conducteur, deux superviseurs, Assistant, impression de la fiche) | S | Non |
 | 5 | Saisir de vraies lignes, bus et affectations pour démontrer la déviation conducteur (M3/M4) | S | Non |
-| 6 | Après M1 : événements réels → priorités P1/P2 → fiche avec défaut → entraînement du modèle d'état « mode B » | M | Non (après le n° 1) |
+| 6 | *(23/10 : boucle démontrée sur 1 segment, P2 + fiche avec défaut)* Accumuler des événements validés, puis entraîner le modèle d'état « mode B » (≥ 50 positifs) | M | Non |
 | 7 | Faire tourner les tests FastAPI dans la CI / l'image de test et vérifier les exécutions GitHub | S | Petit téléchargement (pytest) |
 | 8 | Réactiver un calque de risque lisible sur la carte | S | Non |
 | 9 | Importer les noms OSM manquants des segments | S | Peut-être (selon l'extrait OSM déjà présent) |
@@ -154,8 +161,8 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 ```powershell
 # 1. Ollama sur l'hôte Windows (modèles déjà présents : llama3.2:3b, nomic-embed-text), écoute sur toutes les interfaces
 $env:OLLAMA_HOST = "0.0.0.0"; ollama serve
-# 2. Pile complète (db, api, web, osrm, worker M2)
-docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 up -d --build
+# 2. Pile complète (db, api, web, osrm, worker M2, worker M1 — poids : python scripts/download_m1_model.py)
+docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 --profile m1 up -d --build
 # 3. Indexer les guides du RAG (ignore les fichiers inchangés)
 docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest
 # 4. Vérifier l'état des services

@@ -16,6 +16,9 @@ dist/
 *.joblib
 data/local/
 data/downloads/
+# M1 pilot photos and annotated outputs (local only)
+data/m1/pilot/
+data/m1/pilot_out/
 mlruns/
 .DS_Store
 

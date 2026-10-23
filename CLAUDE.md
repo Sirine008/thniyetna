@@ -68,6 +68,15 @@ segment horizon, while `governorate_risk_forecasts` stores only the first 7 days
 No accident GPS (segment risk is an exposure allocation) · within-governorate day timing ≈ chance (AUC 0.52) ·
 history carries the signal · trees do not beat logistic regression · accident export lags the scoring date.
 
+## M1 perception (pretrained, since 2026-10-23)
+- Model: public `dronefreak/rdd2022-yolo26s` (AGPL-3.0) → `models/road-damage-yolo26s.pt` via
+  `python scripts/download_m1_model.py`; check with `scripts/check_m1_model.py` in the worker image. CPU only
+  (the Dockerfile installs CPU torch first). Card: `docs/M1_MODEL_CARD.md` (published metrics are the author's, not ours).
+- Start: `docker compose ... --profile m2 --profile m1 up -d --build perception-worker`. Pilot/benchmark run in the
+  worker image (`perception.pilot`, `perception.benchmark --source`), not in `ml/.venv` (no torch there).
+- Pilot photos `data/m1/pilot/` and outputs `data/m1/pilot_out/` are gitignored; never commit them.
+- Known: potholes in close-up citizen photos are missed (0/7 on the pilot). Do not claim local accuracy.
+
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
   reads only `data/rag/corpus/**` (field guides; a future user guide also goes there). The `docs/**/*.md` rows

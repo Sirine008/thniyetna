@@ -145,6 +145,25 @@ def test_m1_events_raise_risk_and_closed_events_are_ignored(bundle, accidents, w
     assert withev["a"]["risk_score"] == pytest.approx(base["a"]["risk_score"])
 
 
+def test_same_day_m1_event_counts_in_todays_pass(bundle, accidents, weather, road_stats, segments):
+    # regression: the job used to cut events at today's midnight, so an event from this afternoon was ignored
+    from prediction.jobs.score import segment_cutoff
+
+    fc = _forecast(bundle, accidents, weather, road_stats)
+    now = datetime(2021, 12, 31, 17, 45, tzinfo=timezone.utc)
+    ev = pd.DataFrame({"segment_id": ["b"], "event_type": ["alligator_crack"], "severity": [0.73],
+                       "confidence": [0.35], "observed_at": ["2021-12-31T17:44:00Z"],
+                       "status": ["validated"], "validated": [True]})
+    assert segment_cutoff(None, now=now) == now
+    assert segment_cutoff(pd.Timestamp("2021-12-31")) == datetime(2021, 12, 31, tzinfo=timezone.utc)
+    recs = {r["segment_id"]: r for r in score_segments(bundle, segments, fc, road_stats, events=ev,
+                                                         as_of=segment_cutoff(None, now=now))}
+    assert recs["b"]["predicted_condition"] == "poor"
+    midnight = {r["segment_id"]: r for r in score_segments(bundle, segments, fc, road_stats, events=ev,
+                                                             as_of=segment_cutoff(pd.Timestamp("2021-12-31")))}
+    assert midnight["b"]["predicted_condition"] == "no_observed_defect"  # --as-of replays stay reproducible
+
+
 def test_contract_rejects_bad_records():
     with pytest.raises(ValueError):
         validate({"segment_id": "x", "risk_score": 1.5, "risk_level": "low", "horizon_days": 30,

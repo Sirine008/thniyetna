@@ -100,8 +100,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-thniyetna}:${POSTGRES_PASSWORD:-thniyetna_dev}@db:5432/${POSTGRES_DB:-thniyetna}
       MEDIA_ROOT: /data/media
-      M1_MODEL_WEIGHTS: /models/${M1_MODEL_FILE:-road-damage-yolo26n.pt}
-      M1_MODEL_NAME: ${M1_MODEL_NAME:-yolo26n-rdd2022}
+      M1_MODEL_WEIGHTS: /models/${M1_MODEL_FILE:-road-damage-yolo26s.pt}
+      M1_MODEL_NAME: ${M1_MODEL_NAME:-yolo26s-rdd2022-dronefreak}
       M1_DEVICE: ${M1_DEVICE:-cpu}
       M1_IMGSZ: ${M1_IMGSZ:-640}
       M1_CONF: ${M1_CONF:-0.25}
