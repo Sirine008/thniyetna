@@ -129,3 +129,27 @@ def test_triggering_hazards_are_each_hazard_that_alone_exceeds_042_else_all():
     assert R._exposure_risk([0.4]) < R.REROUTE_MIN_RISK
     assert R._triggering_hazards(many, {i: 0.0 for i in range(6)}) == set(range(6))
     assert R._triggering_hazards([weak], {0: 0.0}) == set()                      # below 0.42: nothing triggers
+
+
+def test_detour_is_searched_around_a_hazard_far_from_the_trip_midpoint(monkeypatch, m3):
+    # the hazard is near the start (lon 9.853); the trip midpoint is at lon 9.865
+    near_start = {**EVENT, "lon": 9.853}
+    around = [[37.270, 9.850], [37.275, 9.850], [37.275, 9.857], [37.270, 9.857], [37.270, 9.880]]
+    through = [[37.270, 9.850], [37.270, 9.853], [37.280, 9.860], [37.280, 9.880], [37.270, 9.880]]
+
+    def fake_osrm(coords, alternatives=0):
+        if len(coords) == 2:
+            return [osrm(DIRECT, 300)]
+        w = coords[1]  # only a waypoint beside the hazard, north side, leads around it
+        return [osrm(around, 420)] if abs(w[1] - 9.853) < 0.002 and w[0] > 37.2705 else [osrm(through, 420)]
+
+    published = m3([near_start], [])
+    monkeypatch.setattr(R, "_fetch_osrm", fake_osrm)
+    res = R.driver_next_best(REQ, FakeDB(), DRIVER)
+    assert res.reroute_needed and res.polyline == around
+    assert min_distance_m(res.polyline, near_start) > 105
+    assert [p["topic"] for p in published] == ["driver.reroute.alert"]
+
+    # the midpoint search alone (previous behaviour) only finds routes through the hazard
+    monkeypatch.setattr(R, "_hazard_detours", lambda req, line, hazards: [])
+    assert not R.get_route(REQ, None).reroute_needed

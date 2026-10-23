@@ -1,5 +1,6 @@
 """M3 routing: OSRM candidates + risk-aware next-best selection."""
 import os, json, math, urllib.parse, urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -161,27 +162,51 @@ def _candidate(route,hazards,db=None):
     return RouteCandidate(distance_m=distance,duration_s=duration,risk=risk,score=score,polyline=line,
                           hazard_risk=hazard_risk,segment_risk=segment_risk,scored_segments=segments),near
 
+def _offsets(lat,lon,dlat,dlon,kms):
+    """Waypoints on both sides of (lat,lon), perpendicular to the direction (dlat,dlon)."""
+    dx=dlon*math.cos(math.radians(lat)); dy=dlat
+    norm=math.hypot(dx,dy) or 1.0; px=-dy/norm; py=dx/norm
+    return [(lat+side*py*(km/111.0), lon+side*px*(km/(111.0*max(.2,math.cos(math.radians(lat))))))
+            for km in kms for side in (-1,1)]
+
+def _fetch_via(a,b,waypoints):
+    """OSRM a -> waypoint -> b for each waypoint, in parallel (I/O bound); failed lookups are skipped."""
+    def one(w):
+        try:
+            found=_fetch_osrm([a,w,b],0)
+            return found[0] if found else None
+        except HTTPException:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return [r for r in pool.map(one,waypoints) if r]
+
 def _detour_routes(req):
-    """Ask OSRM for road-following corridors on both sides of the direct route.
+    """Ask OSRM for road-following corridors on both sides of the direct route (around the trip midpoint).
     The waypoint is only a search hint; returned geometry still follows real roads.
     """
     a=(req.current_lat,req.current_lon); b=(req.destination_lat,req.destination_lon)
-    mid_lat=(a[0]+b[0])/2; mid_lon=(a[1]+b[1])/2
-    # Perpendicular unit vector in local lat/lon coordinates.
-    dx=(b[1]-a[1])*math.cos(math.radians(mid_lat)); dy=b[0]-a[0]
-    norm=math.hypot(dx,dy) or 1.0; px=-dy/norm; py=dx/norm
-    routes=[]
     # 0.9-2.7 km lateral search gives visibly distinct but still practical corridors.
-    for km in (0.9,1.4,2.0,2.7):
-        for side in (-1,1):
-            lat=mid_lat + side*py*(km/111.0)
-            lon=mid_lon + side*px*(km/(111.0*max(.2,math.cos(math.radians(mid_lat)))))
-            try:
-                found=_fetch_osrm([a,(lat,lon),b],0)
-                if found: routes.append(found[0])
-            except HTTPException:
-                continue
-    return routes
+    return _fetch_via(a,b,_offsets((a[0]+b[0])/2,(a[1]+b[1])/2,b[0]-a[0],b[1]-a[1],(0.9,1.4,2.0,2.7)))
+
+HAZARD_DETOUR_KM=(0.5,1.0,2.0,3.0)
+HAZARD_CLUSTER_M=500   # hazards closer than this share one detour search
+MAX_HAZARD_CLUSTERS=6  # bounds the extra OSRM calls (6 x 8)
+
+def _hazard_detours(req,line,hazards):
+    """Corridors around each hazard to avoid: waypoints perpendicular to the fastest route at the hazard.
+    The midpoint search alone cannot get around a hazard far from the middle of the trip."""
+    if not hazards or len(line)<2:return []
+    a=(req.current_lat,req.current_lon); b=(req.destination_lat,req.destination_lon)
+    centres=[]
+    for h in hazards:
+        p=(float(h["lat"]),float(h["lon"]))
+        if all(haversine_m(p[0],p[1],c[0],c[1])>HAZARD_CLUSTER_M for c in centres):centres.append(p)
+    waypoints=[]
+    for lat,lon in centres[:MAX_HAZARD_CLUSTERS]:
+        i=min(range(len(line)),key=lambda k:haversine_m(line[k][0],line[k][1],lat,lon))
+        p,q=line[max(0,i-3)],line[min(len(line)-1,i+3)]
+        waypoints+=_offsets(lat,lon,q[0]-p[0],q[1]-p[1],HAZARD_DETOUR_KM)
+    return _fetch_via(a,b,waypoints)
 
 def _different_enough(a,b):
     """Reject an 'alternative' that visually sits on top of the initial route."""
@@ -212,7 +237,8 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
     # using only real RoadEvents / validated citizen reports from PostgreSQL.
     # (M2 segment risk can trigger this too, even with no point hazard nearby.)
     if fastest.risk >= REROUTE_MIN_RISK:
-        for route in _detour_routes(req):
+        to_avoid=[hazards[i] for i in sorted(trigger,key=lambda i:fast_near[i])]
+        for route in _detour_routes(req)+_hazard_detours(req,fastest.polyline,to_avoid):
             candidate,near=_candidate(route,hazards,db)
             if _different_enough(fastest.polyline,candidate.polyline):
                 pool.append((candidate,near))
