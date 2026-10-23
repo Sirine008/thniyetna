@@ -49,9 +49,9 @@ SEGMENT_BUFFER_M=15      # route geometry vs segment geometry tolerance
 SEGMENT_MIN_OVERLAP_M=60 # a crossing street only touches ~2x buffer, so it is ignored
 _SEGMENT_RISK_SQL=text("""
   WITH route AS (SELECT ST_SetSRID(ST_GeomFromText(:wkt),4326) g),
-  -- buffer in UTM 32N metres (EPSG:32632 covers Tunisia): same overlaps as a geography buffer, ~25x
-  -- faster on detours that double back on themselves (1.2 s -> 0.05 s measured)
-  zone AS (SELECT g, ST_Transform(ST_Buffer(ST_Transform(g,32632),:buf),4326) z FROM route),
+  -- MATERIALIZED: computed once. Inlined, the buffer of the bound :wkt was re-evaluated for every
+  -- candidate segment row (0.5-2 s per long detour instead of ~0.05 s).
+  zone AS MATERIALIZED (SELECT g, ST_Buffer(g::geography,:buf)::geometry z FROM route),
   near AS (
     SELECT s.id, ST_Length(s.geom::geography) seg_m,
            ST_Length(ST_Intersection(s.geom,zone.z)::geography) overlap_m
