@@ -11,6 +11,27 @@ Aucune donnée ni aucun code n'ont été modifiés ; le LLM n'a pas été appel�
 > **Mise à jour du 23/10/2026 (M3).** Graphe OSRM étendu à tout le gouvernorat ; données de démo
 > (`scripts/seed_demo.py`) ; règle de déviation corrigée (mesure vraie des dangers, alternative obligée d'éviter les
 > dangers déclencheurs, recherche autour des dangers, avertissement sans alternative). Décision : `docs/DECISIONS.md` (D-001).
+>
+> **Mise à jour du 23/10/2026 (M3, recherche de destination).** Page citoyenne « Carte des incidents · Bizerte » :
+> destination libre (recherche avec autocomplétion dans un index de 711 lieux de TN-23, clic sur la carte, 3 raccourcis),
+> départ « Ma position » / clic / centre de Bizerte, message clair hors zone ; carte de résultat à trois états
+> (vérifié / alternative / danger sans alternative). Tests : dépendances API installées dans `ml/.venv`
+> (`requirements-dev.txt`), plus aucun test de routage ignoré.
+
+**Commits du 23/10/2026** (branche `m1-m3-demo`) :
+
+| Heure | Commit | Contenu |
+|---|---|---|
+| 18:53 | `5190773` | M1 : YOLO26s pré-entraîné (RDD2022), worker CPU, test pilote, boucle de bout en bout |
+| 19:27 | `2a74c96` | M3 : graphe OSRM pour tout le gouvernorat de Bizerte |
+| 19:45 | `646b2bc` | Données de démo `scripts/seed_demo.py` (+ reset), étiquetées dans l'interface, exclues de l'entraînement M2 |
+| 20:15–20:19 | `11ee65a`, `2d8fe84`, `d2b73b7` | M3 : distance vraie danger-trajet (PostGIS) ; l'alternative doit éviter les dangers déclencheurs ; détours autour de chaque danger |
+| 20:34–20:45 | `30a986c`, `1e3b6c2` | M3 : temps de réponse (tampon matérialisé dans `_segment_risk`), résultats inchangés |
+| 20:53 | `ccc2ae5` | M3 : avertissement du conducteur sans alternative sûre ; textes d'alerte cohérents ; décision D-001 |
+| 21:00 | `53172d4` | M3 : une seule alerte active par conducteur et par ligne |
+| 21:07 | `3be8c79` | Démo rééquilibrée : L1 déviation, L2 avertissement, L3/L4 sans alerte |
+| 21:31 | `0cedbfd` | M3 : recherche libre de destination (index des lieux TN-23, Alembic 0007, `GET /routing/places`) |
+| 21:40 | `e1db07a` | M3 : carte de résultat citoyenne à trois états ; `requirements-dev.txt` ; tests sans skip de routage |
 
 ## a) Résumé
 
@@ -22,14 +43,18 @@ Aucune donnée ni aucun code n'ont été modifiés ; le LLM n'a pas été appel�
    Boucle vérifiée en direct : 1 signalement citoyen → 1 événement validé → le segment OSM-100663969 passe de
    faible / P3 à **moyen / P2 / « poor »**. Mais les nids-de-poule des photos rapprochées ne sont pas détectés (0/7 sur le pilote).
 4. **M3/M4/M5** : routage OSRM, authentification par rôles, temps réel (SSE) et application web sont vérifiés en direct.
-   En revanche, il n'y a encore ni ligne officielle, ni bus, ni affectation, donc pas de démonstration de déviation.
+   *(23/10)* Démonstration de déviation avec 4 lignes de démo ; le citoyen choisit librement sa destination dans le gouvernorat.
 5. **Assistant RAG** : 4 guides (582 extraits), interface parties A et B en place. Qualité des réponses de
    llama3.2:3b : au mieux 9 réponses correctes sur 16 questions répondables (`prompt_v2`), et 5 variantes restent à évaluer.
 
 Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais pas vérifié en direct · 🟠 Partiel ·
 ❌ Pas commencé / bloqué.
 
-**Preuves utilisées pendant l'audit :**
+**Tests au 23/10 (21 h 40) :** `ml\.venv\Scripts\python.exe -m pytest -q` → **143 réussis, 1 ignoré**
+(`ml/perception/tests/test_core.py` : `cv2` n'existe que dans l'image du worker M1) ; `npm test` (frontend) → 6/6 ;
+`npm run build` ✅. Les dépendances des tests API viennent de `requirements-dev.txt`.
+
+**Preuves utilisées pendant l'audit du 15/10 :**
 - `pytest -q` (racine, `ml/.venv`) : **74 réussis, 3 ignorés**. Les 3 fichiers ignorés demandent fastapi :
   `test_auth_staff`, `test_rag_api`, `test_routing_m2_risk`.
 - Ces 3 fichiers ont été exécutés à part dans l'image `api` (pytest n'y est pas installé ; un petit lanceur
@@ -74,7 +99,10 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | Coût tenant compte du risque + déviation | ✅ | *(23/10)* Règle corrigée (D-001) : distance vraie PostGIS, alternative éligible seulement si elle évite à > 105 m chaque danger déclencheur, détours cherchés autour des dangers ; seuils 0,42 / 0,12 inchangés. `tests/test_routing_event_reroute.py` 15 + `test_routing_m2_risk.py` 5 réussis (image `api`). Démo : L1 dévie (0,726 → 0,024, 28,2 km, danger le plus proche à 362 m) | L1 et L2 partagent RN11 : un danger contournable sur L1 est aussi sur L2 |
 | Lignes officielles et affectations | 🟡 | *(23/10)* 4 lignes de démo `DEMO-L1…L4` et leurs affectations, créées par l'API (`scripts/seed_demo.py`) | Lignes réelles SRTB |
 | Alerte conducteur (déviation / avertissement) | ✅ | *(23/10, démo rééquilibrée)* Calculé par M3 : L1 `driver.reroute.alert` (« 2 danger(s) sur le trajet initial, 0 sur l'alternative ; risque 73 % → 2 % »), L2 `driver.route.warning` (3 dangers, risque 80 %, aucune alternative éligible), L3 / L4 aucune alerte (risque 14 % / 0 %). Une seule alerte active par conducteur et ligne : un nouveau contrôle identique la rafraîchit (« Confirmée n× »), vérifié en direct et en navigateur headless (`/driver`, `/driver/alerts`) | Temps de réponse 0,02–1,7 s par contrôle de ligne |
-| Géocodage | ✅ | `GET /routing/geocode?q=Corniche` → 2 résultats (Nominatim public, nécessite Internet) | — |
+| Géocodage (Nominatim) | ✅ | `GET /routing/geocode?q=Corniche` → 2 résultats (Nominatim public, nécessite Internet) ; *(23/10)* plus utilisé par la page citoyenne | — |
+| Index des lieux (recherche de destination) | ✅ | *(23/10)* Table `places` (Alembic 0007, `pg_trgm`) construite par `scripts/build_places_index.py` depuis `data/osm/bizerte.osm.pbf` : **711 lieux** dans TN-23 (441 rues, 64 écoles, 46 villages, 6 villes, 5 hôpitaux, 5 ports…), 414 avec nom arabe. En direct : « menzel bourguiba », « Ménzel-BOURGUIBA », « منزل بورقيبة » et la faute « bourgiba » → Menzel Bourguiba (Ville) en premier ; `GET /routing/places/nearest` (37,2746 ; 9,8739) → Rue Avicenne à 103 m. `tests/test_routing_places.py` | Peu de rues nommées dans OSM ; reconstruire l'index après un nouvel extrait |
+| Point hors zone | ✅ | *(23/10)* `POST /routing/route` → **422** « Destination hors de la zone couverte (gouvernorat de Bizerte) » : Tunis (36,80 ; 10,18), la mer (37,55 ; 9,90), le lac Ichkeul (route à 4 km) | — |
+| Carte de résultat citoyenne (3 états) | ✅ | *(23/10)* `frontend/src/lib/routeState.js` + `npm test` ; API en direct depuis le centre de Bizerte : Mateur → avertissement (3 faïençages à 7,2 / 7,5 / 21,7 km du départ, risque 80 %), Menzel Bourguiba → alternative (73 % → 2 %), Zarzouna → vérifié (0 %). Jamais « vérifié » si le trajet rapide est ≥ 0,42. Champ `hazards[].distance_from_start_m` (affichage seulement, décisions M3 inchangées) | Recette dans un navigateur / sur téléphone |
 
 ### M4 — Plateforme web
 
@@ -85,6 +113,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | Tableau de bord Équipement | ✅ | `GET /platform/dashboard/equipment` → 2 signalements ouverts, 0 détection, 0 inspection active | — |
 | Tableau de bord Transport | ✅ | `GET /platform/dashboard/transport` → 0 ligne, 0 bus, 0 affectation | Données de flotte |
 | Parcours citoyen (signalement photo, suivi) | 🟠 | Pages et API présentes (code) ; 1 compte citoyen en base, non utilisé (mot de passe inconnu, écriture) | Parcours à vérifier en direct |
+| Itinéraire citoyen (destination libre) | 🟡 | *(23/10)* Autocomplétion (250 ms, icônes, clavier), clic carte avec nom du lieu le plus proche, départ « Ma position » / clic / centre ; bundle servi vérifié et API en direct ; **pas de clic en navigateur ni de test sur téléphone** | Recette mobile |
 | Parcours conducteur | 🟠 | Connexion `driver.srtb` ✅ ; `GET /routing/driver/me` → 0 (aucune affectation) | Affectation pour démontrer la carte et la déviation |
 | Temps réel (SSE) | ✅ | `GET /api/realtime/stream` → `event: connected` + keepalive | — |
 | Interface non vérifiée par clic | 🟠 | Aucun navigateur automatisé pendant l'audit : seuls les routes et le bundle ont été vérifiés | Recette manuelle des écrans |
@@ -95,13 +124,13 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 |---|---|---|---|
 | Pile Docker Compose | ✅ | `docker compose ps` : db, api *healthy* ; osrm, web, m2-worker démarrés | Healthchecks pour osrm / web / m2-worker |
 | Santé et dépendances | ✅ | `GET /system/ready` → database, postgis, media_storage = true ; `/health` → ok | — |
-| Schéma (Alembic) | ✅ | Base : `alembic_version` = `0006_rag_chunk_context` | — |
+| Schéma (Alembic) | ✅ | *(23/10)* Base : `alembic_version` = `0007_places_index` | — |
 | Authentification JWT et rôles | ✅ | 4 connexions de démarrage → 200 ; conducteur → tableau Équipement **403** ; anonyme → signalements **401** ; `test_auth_staff.py` 16/16 (image `api`) | — |
 | Gestion des comptes par ministère | ✅ | `GET /auth/staff` → 2 comptes pour chaque ministère | — |
 | Stockage média local | ✅ | `GET /system/storage` → `local-volume`, dossiers images / videos / frames / exports | — |
 | File de notifications (outbox) | ✅ | Base : 8 notifications `pending` (2 complaint.created, 1 complaint.status, 5 risk.batch_updated), lues par le SSE | — |
-| Intégration continue | 🟠 | `.github/workflows/ci.yml` présent ; exécutions non vérifiées (`gh` absent) ; `main` local en avance de 3 commits sur `origin/main` avant cet audit | Vérifier les exécutions CI sur GitHub |
-| Tests FastAPI dans `pytest -q` | 🟠 | Ignorés dans `ml/.venv` (fastapi absent) ; réussis dans l'image `api` via un lanceur sans pytest | Installer pytest dans l'image de test ou la CI |
+| Intégration continue | 🟠 | `.github/workflows/ci.yml` présent (installe `requirements-dev.txt` depuis le 23/10) ; exécutions non vérifiées (`gh` absent) | Vérifier les exécutions CI sur GitHub |
+| Tests FastAPI dans `pytest -q` | ✅ | *(23/10)* `requirements-dev.txt` installé dans `ml/.venv` : tous les tests API et de routage tournent (143 réussis, 1 ignoré = `cv2` de M1). Les 4 erreurs de collecte avec le `pytest` du PATH (Python 3.11) venaient de `python-jose` absent de cet interpréteur | — |
 
 ### RAG / Assistant
 
@@ -143,7 +172,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | L'heuristique des titres de section (contexte des extraits) ignore les titres numérotés répétés et prend des textes de panneaux pour des titres | CLAUDE.md (A.6), `backend/rag/context.py` |
 | Calque de risque désactivé sur la carte | `frontend/src/components/MapCanvas.jsx` l. 10 |
 | Seuls 307 segments sur 675 ont un nom | Base `road_segments` |
-| Les tests FastAPI sont ignorés par `pytest -q` hors image `api` | `pytest -q -rs` |
+| Peu de rues nommées dans OSM pour le gouvernorat (441 dans l'index) : une adresse précise se choisit par clic sur la carte | `scripts/build_places_index.py` |
 
 ## e) Ce qui reste à faire (par priorité)
 
@@ -152,10 +181,10 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 | 1 | *(23/10, en partie fait)* Modèle pré-entraîné en service. Reste : jeu pilote de Bizerte (photos prises depuis un véhicule, étiquetées) → mAP local ; ré-entraîner (RDD2022 + images locales) si le rappel des nids-de-poule reste faible | L | **Oui** pour le ré-entraînement |
 | 2 | Valider le jeu de questions RAG et les étiquettes manuelles (Sirine) | S | Non |
 | 3 | Corriger l'heuristique des titres, relancer `rag.ingest --contexts`, puis évaluer `fts_french` → `chunk_context` → `confidence_gate` → `numbers_rule` (+ `combined_gemma4` si la RAM le permet) | M | Non |
-| 4 | Recette manuelle des écrans dans un navigateur (citoyen, conducteur, deux superviseurs, Assistant, impression de la fiche) | S | Non |
+| 4 | Recette manuelle des écrans dans un navigateur (citoyen — dont la recherche de destination sur téléphone —, conducteur, deux superviseurs, Assistant, impression de la fiche) | S | Non |
 | 5 | *(23/10 : démo L1 déviation / L2 avertissement / L3-L4 normal)* Saisir les vraies lignes SRTB | S | Non |
 | 6 | *(23/10 : boucle démontrée sur 1 segment, P2 + fiche avec défaut)* Accumuler des événements validés, puis entraîner le modèle d'état « mode B » (≥ 50 positifs) | M | Non |
-| 7 | Faire tourner les tests FastAPI dans la CI / l'image de test et vérifier les exécutions GitHub | S | Petit téléchargement (pytest) |
+| 7 | *(23/10 : tests FastAPI dans `ml/.venv` et la CI)* Vérifier les exécutions GitHub | S | Non |
 | 8 | Réactiver un calque de risque lisible sur la carte | S | Non |
 | 9 | Importer les noms OSM manquants des segments | S | Peut-être (selon l'extrait OSM déjà présent) |
 | 10 | Tester un modèle de langage plus grand si la qualité reste insuffisante | M | **Oui** si autre que `gemma4` (déjà présent) |
@@ -171,8 +200,12 @@ docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --pr
 docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest
 # 4. Vérifier l'état des services
 docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 ps
-# 5. Tests
+# 5. Index des lieux (après une base vide ou un nouvel extrait OSM)
+$env:DATABASE_URL = "postgresql+psycopg://thniyetna:thniyetna_dev@localhost:5433/thniyetna"
+.\ml\.venv\Scripts\python.exe -X utf8 scripts/build_places_index.py
+# 6. Tests (une fois : .\ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt)
 .\ml\.venv\Scripts\python.exe -m pytest -q
+cd frontend; npm test
 ```
 
 Sur une base vide, les données M2 s'ingèrent une fois avec `python -m prediction.jobs.ingest all …` (voir CLAUDE.md, runbook M2 §2).
