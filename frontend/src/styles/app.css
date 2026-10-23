@@ -42,3 +42,59 @@
 
 /* Authentication */
 .auth-page{min-height:100vh;display:grid;place-items:center;padding:32px;background:#f4f7f8;position:relative}.auth-back{position:absolute;top:24px;left:24px;color:#344;text-decoration:none;font-weight:700}.auth-card{width:min(440px,100%);background:#fff;border-radius:24px;padding:32px;box-shadow:0 20px 70px rgba(16,34,44,.12);display:grid;gap:16px}.auth-card .brandmark{margin:0 auto}.auth-card h1,.auth-card p{margin:0}.auth-card label{display:grid;gap:7px;font-size:.88rem;font-weight:700}.auth-card input{width:100%;box-sizing:border-box;border:1px solid #d8e0e3;border-radius:12px;padding:12px 14px;font:inherit}.auth-switch{border:0;background:transparent;color:#176b5b;font-weight:700;cursor:pointer;padding:8px}.setup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-bottom:24px}.setup-grid h3{grid-column:1/-1;margin:0}.setup-grid .assignment-form{align-content:start}@media(max-width:800px){.setup-grid{grid-template-columns:1fr}}
+.demo-badge{display:inline-block;border-radius:3px;padding:3px 7px;margin:0 0 4px;font-size:10px;font-weight:800;letter-spacing:.02em;background:#fff3c4;color:#7a5200;border:1px dashed #c99a1a;white-space:nowrap}
+.alert-superseded{display:inline-block;margin:2px 0;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;background:#eef1f0;color:#657474}.alert-hazards{margin:4px 0 2px;padding-left:16px;font-size:11px;line-height:1.5}
+
+/* Citizen destination search: start + destination card, autocomplete, map picking */
+.trip-box{background:#fff;box-shadow:0 15px 40px #092c3930;border-radius:18px;padding:6px 10px;pointer-events:auto}
+.trip-row-start,.trip-row-dest{display:flex;align-items:center;gap:9px;min-height:44px}
+.trip-row-start{border-bottom:1px solid #eef2f1}
+.trip-row-start>div,.trip-row-dest>div{flex:1;min-width:0}
+.trip-box small{display:block;color:#8b999c;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.trip-row-start b{display:block;font-size:12px;color:#102b35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-row-start button{border:1px solid #dbe9e5;background:#f3faf8;color:#00745f;height:34px;border-radius:11px;padding:0 9px;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer}
+.trip-row-start button.on{background:#082f3c;border-color:#082f3c;color:#fff}
+.trip-row-start button:disabled{opacity:.6}
+.dest-dot{width:11px;height:11px;flex:none;background:#092f3d;border-radius:3px;transform:rotate(45deg)}
+.trip-box .start-dot{flex:none}
+.place-search{display:flex;align-items:center;gap:6px}
+.place-search input{border:0;outline:0;flex:1;min-width:0;font-size:14px;font-weight:800;color:#102b35;padding:3px 0;background:transparent}
+.place-clear{border:0;background:#eef2f1;color:#50636a;width:28px;height:28px;flex:none;border-radius:50%;font-size:17px;line-height:1;cursor:pointer}
+.citizen-nav-top{display:flex;flex-direction:column}
+.citizen-nav-top .search-results{position:absolute;top:100%;left:18px;right:18px;margin-top:-10px;max-height:min(52vh,420px);overflow-y:auto;z-index:700}
+.search-results button{cursor:pointer;min-height:48px}
+.search-results button.active{background:#eaf7f3}
+.search-results .place-icon{width:28px;flex:none;text-align:center;font-size:18px}
+.search-results button>div{min-width:0}
+.search-results b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-state{margin:0;padding:13px;font-size:10px;color:#72858a}
+.pick-hint{pointer-events:auto;align-self:center;margin-top:8px;background:#082f3cf0;color:#dffff7;border-radius:999px;padding:7px 8px 7px 14px;font-size:10px;font-weight:800;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow)}
+.pick-hint button{border:0;background:#ffffff22;color:#fff;border-radius:999px;padding:5px 10px;font-size:9px;font-weight:800;cursor:pointer}
+.citizen-nav.picking .leaflet-container{cursor:crosshair}
+.dest-detail{display:block;font-style:normal;font-size:9px;color:#6e8185;margin-top:2px}
+.route-summary>div{min-width:0}
+.route-summary b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route-error{margin-bottom:10px}.route-error b{font-size:10px}
+.analyze-route-btn:disabled{opacity:.55;cursor:not-allowed}
+.quick-destinations button{cursor:pointer}
+@media(max-width:650px){
+  .citizen-nav-top{padding:12px}
+  .citizen-nav-top .search-results{left:12px;right:12px}
+  .place-search input{font-size:16px} /* >= 16px: iOS does not zoom on focus */
+  .nav-welcome{left:12px;right:12px;padding:16px}
+}
+@media(max-width:400px){.trip-row-start button span{display:none}.trip-row-start button{width:36px;padding:0}}
+
+/* Citizen route card: safe (green) / reroute (orange + green) / warning (red) */
+.route-verdict{display:flex;gap:10px;align-items:center;padding:10px 11px;border-radius:14px;margin-top:8px;border:1px solid}
+.route-verdict>span{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:10px;color:#fff;font-weight:900}
+.route-verdict b,.route-verdict small{display:block}.route-verdict b{font-size:11px}.route-verdict small{font-size:9px;color:#5f7378;margin-top:2px}
+.route-verdict.green{background:#e9f8f4;border-color:#a4e4d5}.route-verdict.green>span{background:#08ad8d}
+.route-verdict.orange{background:#e9f8f4;border-color:#a4e4d5}.route-verdict.orange>span{background:#08ad8d}
+.route-verdict.red{background:#ffeceb;border-color:#f3a29b}.route-verdict.red>span{background:#d92f35}.route-verdict.red b{color:#a3201f}
+.route-state-reroute .route-alert{background:#fff4e8;border-color:#ffc58f}.route-state-reroute .route-alert>span{background:#f08a24}
+.route-hazards{margin-top:7px;padding:8px 11px;border-radius:12px;font-size:10px;max-height:24vh;overflow-y:auto}
+.route-hazards small{display:block;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6e8185}
+.route-hazards ul{margin:4px 0 0;padding-left:16px;line-height:1.55}.route-hazards p{margin:3px 0 0}
+.route-hazards.red{background:#fff6f5;color:#7d1d1b}.route-hazards.orange{background:#fff8f0;color:#7a4a12}
+.route-legend .red{background:#e74b43}

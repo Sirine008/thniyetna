@@ -7,7 +7,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: pip install pytest -r ml/prediction/requirements.txt -r backend/requirements.txt
+      - run: pip install -r ml/prediction/requirements.txt -r requirements-dev.txt
       - run: pytest -q
       - run: docker compose config >/dev/null
       - run: docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 config >/dev/null

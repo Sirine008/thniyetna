@@ -1,0 +1,7 @@
+# Test dependencies, installed in the M2 venv so that one command runs every test (0 skips for routing / API):
+#   ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+#   ml\.venv\Scripts\python.exe -m pytest -q
+# The API pins below are the backend image's (backend/requirements.txt); SQLAlchemy, psycopg and alembic are
+# the same versions as in ml/prediction/requirements.txt, so the M2 model pins (numpy, scikit-learn...) do not move.
+-r backend/requirements.txt
+pytest==9.1.1

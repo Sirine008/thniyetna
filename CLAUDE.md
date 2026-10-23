@@ -18,7 +18,11 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
   `tunisia-latest.osm.pbf`. Never commit these files.
 
 ## Rules
-- Run `pytest -q` (repo root) after any code change; all tests must pass.
+- Tests: `ml\.venv\Scripts\python.exe -m pytest -q` (repo root) after any code change; all tests must pass. Test dependencies (fastapi,
+  python-jose... = the API's) come from `requirements-dev.txt`, installed once in the M2 venv:
+  `ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`. Expected: 0 skips except M1's `cv2` test
+  (OpenCV only exists in the perception worker image). Do not use a bare `pytest` from PATH (another Python without
+  the API packages). Frontend: `npm test` in `frontend/` (node --test, `src/lib/routeState.js`) and `npm run build`.
 - Never invent metrics or results. Report numbers only from files the pipeline wrote
   (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, the model card).
 - Model card: `train` / `ablation` regenerate it at `reports/m2/MODEL_CARD.md` (+ `models/m2/model_card.json`).
@@ -68,6 +72,56 @@ segment horizon, while `governorate_risk_forecasts` stores only the first 7 days
 No accident GPS (segment risk is an exposure allocation) · within-governorate day timing ≈ chance (AUC 0.52) ·
 history carries the signal · trees do not beat logistic regression · accident export lags the scoring date.
 
+## M1 perception (pretrained, since 2026-10-23)
+- Model: public `dronefreak/rdd2022-yolo26s` (AGPL-3.0) → `models/road-damage-yolo26s.pt` via
+  `python scripts/download_m1_model.py`; check with `scripts/check_m1_model.py` in the worker image. CPU only
+  (the Dockerfile installs CPU torch first). Card: `docs/M1_MODEL_CARD.md` (published metrics are the author's, not ours).
+- Start: `docker compose ... --profile m2 --profile m1 up -d --build perception-worker`. Pilot/benchmark run in the
+  worker image (`perception.pilot`, `perception.benchmark --source`), not in `ml/.venv` (no torch there).
+- Pilot photos `data/m1/pilot/` and outputs `data/m1/pilot_out/` are gitignored; never commit them.
+- Known: potholes in close-up citizen photos are missed (0/7 on the pilot). Do not claim local accuracy.
+
+## Demo data (scripts/seed_demo.py)
+- Needs the stack with `--profile m2 --profile m1` (perception-worker) and photos in `data/m1/pilot/`. Run from the repo
+  root with the M2 venv (it calls `prediction.jobs.score`):
+  - seed (idempotent): `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py`
+  - reset (lists demo rows, asks `yes`, deletes only them + their media, then one normal M2 pass):
+    `ml\.venv\Scripts\python.exe -X utf8 scripts/seed_demo.py --reset`
+  - `--summary` prints the DB summary; `--rescore` forces the M2 pass. Route checks always run (the API keeps one
+    active alert per driver and line, so re-running does not duplicate alerts).
+  - Layout (23/10): L1 -> reroute (2 hazards on OSM-125567491, which has a road around it), L2 -> warning (own hazard on
+    OSM-116022841, no road around; L2 also passes L1's stretch), L3/L4 -> no hazard; reports >= 2 km from every line.
+- Everything goes through the API (OSRM lines, M1 worker, validation, `/routing/driver/next-best`) and the normal
+  M2 job; the script only adds the demo tag and, on reset, deletes demo rows. Never insert scores/routes/alerts by hand.
+- Demo rows: usernames `demo.*`; `metadata.demo` / `payload.demo` / `options.demo` = true elsewhere. The API exposes
+  `demo` and the UI shows "DÉMO — données fictives". M2 training excludes them (`condition_model.TRAINING_EVENTS_SQL`,
+  `drop_demo`, test `test_demo_events_are_excluded_from_condition_training`).
+- Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
+
+## M3 destination search (place index, since 2026-10-23)
+- Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`, `components/PlaceSearch.jsx`):
+  free destination = autocomplete search, a map click (nearest place name shown) or the 3 shortcut buttons; start =
+  « Ma position » (browser geolocation), « Carte » (next map click) or the Bizerte centre by default. M3 logic unchanged.
+- Table `places` (Alembic `0007_places_index`, extension `pg_trgm`): name (name:fr preferred), name_ar, name_norm
+  (normalised search key of every name variant), category, rank, locality (nearest town / village), point geom.
+  Normalisation (`backend/routing/places_index.py`, shared by the API and the script): case, accents, punctuation,
+  ligatures, Arabic diacritics and letter variants (أ/ا, ة/ه, ى/ي), so « menzel bourguiba » = « Ménzel-Bourguiba » = « منزل بورقيبة ».
+- Build / rebuild (after `scripts/osm-clip-bizerte.sh` or a fresh DB; idempotent, replaces the table), from the repo
+  root with the M2 venv (pyosmium) and the host DB:
+  `$env:DATABASE_URL = "<DB from the host>"; ml\.venv\Scripts\python.exe -X utf8 scripts/build_places_index.py`
+  (`--dry-run` = counts only). Keeps points inside TN-23 (`admin_areas`, 300 m tolerance): 711 rows on 2026-10-23
+  (441 streets, 64 schools, 46 villages, 6 towns/city, 5 hospitals, 5 ports...); OSM coverage of streets is sparse.
+- API: `GET /routing/places?q=...&limit=8` (name, category in French, category_key, lat, lon, name_ar?, locality?;
+  503 if the table is missing) and `GET /routing/places/nearest?lat=&lon=` (place within 3 km, `covered`).
+- Coverage: `POST /routing/route` answers 422 « Destination hors de la zone couverte (gouvernorat de Bizerte) »
+  (or « Point de départ hors… ») when a point is outside TN-23 + 2 km (the OSRM extract), when OSRM returns
+  NoSegment / NoRoute, or when OSRM snaps a point more than 1.5 km away (e.g. Lake Ichkeul, the sea).
+- Result card (`frontend/src/lib/routeState.js`, wording of the driver alerts): safe « Trajet vérifié · aucun danger
+  significatif » (green) / reroute « Alternative plus sûre recommandée », risque A % → B % + dangers évités / warning
+  « Danger sur l’itinéraire — aucune alternative sûre » (red) with each hazard (type in French, distance from the start
+  = `hazards[].distance_from_start_m`, risk). Never « vérifié » when `fastest_risk` >= 0.42.
+- Tests: `tests/test_routing_places.py`, `tests/test_routing_event_reroute.py` (warning card data), `npm test`.
+
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
   reads only `data/rag/corpus/**` (field guides; a future user guide also goes there). The `docs/**/*.md` rows
@@ -82,8 +136,8 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Add documents to `data/rag/corpus/` (never commit them; only its README is versioned), then index (skips unchanged files):
   `docker compose -f docker-compose.yml -f ml/prediction/docker-compose.m2.yml --profile m2 exec api python -m rag.ingest`
 - Endpoints (both supervisor roles): `POST /assistant/ask`, `GET /assistant/status`.
-- Tests: `tests/test_rag_core.py` runs anywhere; `tests/test_rag_api.py` needs fastapi (skipped in `ml/.venv`,
-  run it in the api image).
+- Tests: `tests/test_rag_core.py` runs anywhere; `tests/test_rag_api.py` needs fastapi (installed in `ml/.venv`
+  from `requirements-dev.txt`).
 - First check (2026-10-15, 14 docs / 625 chunks): plumbing works, but both test questions were refused.
   "Limites du modèle M2 ?" → retrieval miss (French question vs English model card; the limits chunk is not in
   the top 4). "Nid-de-poule par temps froid ?" → the cold-mix pages are retrieved, but llama3.2:3b still answers

@@ -21,3 +21,67 @@ def test_severity_proxy_is_bounded_and_size_sensitive():
     assert 0 <= small <= 1
     assert 0 <= large <= 1
     assert large > small
+
+
+def _rdd_class_map():
+    # detector.py imports ultralytics at module level; read the literal so this runs in any env.
+    import ast
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "detector.py").read_text(encoding="utf-8")
+    for node in ast.parse(src).body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "RDD_CLASS_MAP":
+            return ast.literal_eval(node.value)
+    raise AssertionError("RDD_CLASS_MAP not found")
+
+
+def test_class_map_covers_pretrained_yolo26s_names():
+    # class names of models/road-damage-yolo26s.pt (HF dronefreak/rdd2022-yolo26s), in model order
+    names = ["longitudinal_crack", "transverse_crack", "alligator_crack", "pothole"]
+    mapping = _rdd_class_map()
+    assert [mapping[n] for n in names] == names
+    assert {mapping[k] for k in ("D00", "D10", "D20", "D40")} == set(names)
+
+
+def test_benchmark_runtime_only_mode_needs_no_dataset():
+    from perception.benchmark import build_parser, percentile
+
+    args = build_parser().parse_args(["--weights", "w.pt", "--source", "pilot"])
+    assert args.data is None and args.source == "pilot" and args.out is None
+    assert (args.conf, args.iou, args.imgsz) == (0.25, 0.50, 640)
+    assert percentile([10.0, 20.0, 30.0, 40.0], 0.5) == 25.0
+
+
+def test_pilot_annotation_draws_boxes():
+    import pytest
+
+    pytest.importorskip("cv2")
+    import numpy as np
+
+    from perception.detector import Detection
+    from perception.pilot import annotate
+
+    image = np.zeros((200, 300, 3), dtype=np.uint8)
+    out = annotate(image, [Detection("pothole", 0.8, (50.0, 60.0, 150.0, 160.0), 0.7)])
+    assert out.shape == image.shape and out.any() and not image.any()
+
+
+def test_worker_jsonb_parameters_are_typed():
+    # regression: an untyped bind inside jsonb_build_object ("could not determine data type of
+    # parameter") made every job fail when a 2nd observation merged into an existing event
+    import re
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "worker.py").read_text(encoding="utf-8")
+    calls = []
+    for m in re.finditer(r"jsonb_build_object\(", src):
+        depth, i = 1, m.end()
+        while depth:
+            depth += {"(": 1, ")": -1}.get(src[i], 0)
+            i += 1
+        calls.append(src[m.end():i - 1])
+    assert len(calls) >= 3
+    for body in calls:
+        binds = re.findall(r"(?<![:\w]):(\w+)", body)
+        typed = re.findall(r"CAST\(:(\w+) AS \w+\)", body)
+        assert sorted(binds) == sorted(typed), body

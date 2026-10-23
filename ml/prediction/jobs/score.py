@@ -26,10 +26,23 @@ from ..registry import load_bundle
 from ..segment_risk import exposure_percentiles, governorate_forecasts, score_segments
 
 
+def segment_cutoff(as_of: pd.Timestamp | None, now: datetime | None = None) -> datetime:
+    """Cut-off for M1 events in the segment condition part.
+
+    Without --as-of it is the scoring moment, so an event observed (or validated) today counts in
+    today's pass; the governorate day grid still starts at midnight. With --as-of it is that day's
+    midnight UTC, so a replayed date stays reproducible.
+    """
+    if as_of is None:
+        return now or datetime.now(timezone.utc)
+    return datetime(as_of.year, as_of.month, as_of.day, tzinfo=timezone.utc)
+
+
 def run_once(source, horizon_days: int | None = None, as_of: pd.Timestamp | None = None,
              gov_codes: list[str] | None = None, forecast_days: int = 7) -> dict:
     t0 = time.time()
     horizon_days = horizon_days or SEGMENT.horizon_days
+    cutoff = segment_cutoff(as_of)
     as_of = (as_of or pd.Timestamp.now(tz="Africa/Tunis").tz_localize(None)).normalize()
     bundle = load_bundle()
     acc, wx, rs = source.accidents(), source.weather(), source.road_stats()
@@ -65,7 +78,7 @@ def run_once(source, horizon_days: int | None = None, as_of: pd.Timestamp | None
     cond_model = load_condition_model()
     records = score_segments(bundle, segs, fc, rs, events=source.events(), complaints=source.complaints(),
                              rain30_by_gov=rain30, horizon_days=horizon_days, condition_model=cond_model,
-                             as_of=datetime(as_of.year, as_of.month, as_of.day, tzinfo=timezone.utc)) if len(segs) else []
+                             as_of=cutoff) if len(segs) else []
     validate_many(records)
     written = source.write(gov_rows, records, exposure=exposure_percentiles(records))
     stale = int(feats["history_staleness_days"].max())

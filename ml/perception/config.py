@@ -10,8 +10,8 @@ class Settings:
         "postgresql+psycopg://thniyetna:thniyetna_dev@localhost:5432/thniyetna",
     )
     media_root: Path = Path(os.getenv("MEDIA_ROOT", "/data/media")).resolve()
-    weights: Path = Path(os.getenv("M1_MODEL_WEIGHTS", "/models/road-damage-yolo26n.pt"))
-    model_name: str = os.getenv("M1_MODEL_NAME", "yolo26n-rdd2022")
+    weights: Path = Path(os.getenv("M1_MODEL_WEIGHTS", "/models/road-damage-yolo26s.pt"))
+    model_name: str = os.getenv("M1_MODEL_NAME", "yolo26s-rdd2022-dronefreak")
     device: str = os.getenv("M1_DEVICE", "cpu")
     imgsz: int = int(os.getenv("M1_IMGSZ", "640"))
     confidence: float = float(os.getenv("M1_CONF", "0.25"))

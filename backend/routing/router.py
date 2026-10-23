@@ -1,11 +1,13 @@
 """M3 routing: OSRM candidates + risk-aware next-best selection."""
 import os, json, math, urllib.parse, urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from .schemas import RouteRequest, RouteResponse, RouteCandidate
+from .schemas import RouteRequest, RouteResponse, RouteCandidate, HazardInfo
 from .schemas import RouteCreate, AssignmentCreate
+from . import places_index as P
 from shared.db import get_db
 from shared.auth import require_role
 from shared.realtime import publish
@@ -19,8 +21,21 @@ def _fetch_osrm(coords, alternatives=0):
     try:
         with urllib.request.urlopen(f"{OSRM_URL}/route/v1/driving/{coord_string}?{q}",timeout=8) as r: body=json.load(r)
     except Exception as e: raise HTTPException(503,f"OSRM unavailable: {e}")
+    # point outside the OSRM graph (TN-23 + 2 km): clear French message instead of an OSRM error
+    out_of_zone=P.osrm_coverage_error(body)
+    if out_of_zone: raise HTTPException(422,out_of_zone)
     if body.get("code")!="Ok": raise HTTPException(502,f"OSRM error: {body.get('message',body.get('code'))}")
     return body.get("routes",[])
+
+def _covered(db,lat,lon):
+    """True / False when the point is / is not inside TN-23 + COVERAGE_BUFFER_M (the OSRM extract),
+    None when unknown (no admin_areas row, no PostGIS)."""
+    if db is None or not hasattr(db,"execute"):return None
+    try:
+        row=db.execute(text(P.COVERAGE_SQL),{"lat":lat,"lon":lon,"buffer":P.COVERAGE_BUFFER_M}).mappings().first()
+    except Exception:
+        db.rollback(); return None
+    return None if row is None else bool(row["covered"])
 
 def _osrm(req:RouteRequest):
     return _fetch_osrm([(req.current_lat,req.current_lon),(req.destination_lat,req.destination_lon)], req.alternatives)
@@ -48,7 +63,9 @@ SEGMENT_BUFFER_M=15      # route geometry vs segment geometry tolerance
 SEGMENT_MIN_OVERLAP_M=60 # a crossing street only touches ~2x buffer, so it is ignored
 _SEGMENT_RISK_SQL=text("""
   WITH route AS (SELECT ST_SetSRID(ST_GeomFromText(:wkt),4326) g),
-  zone AS (SELECT g, ST_Buffer(g::geography,:buf)::geometry z FROM route),
+  -- MATERIALIZED: computed once. Inlined, the buffer of the bound :wkt was re-evaluated for every
+  -- candidate segment row (0.5-2 s per long detour instead of ~0.05 s).
+  zone AS MATERIALIZED (SELECT g, ST_Buffer(g::geography,:buf)::geometry z FROM route),
   near AS (
     SELECT s.id, ST_Length(s.geom::geography) seg_m,
            ST_Length(ST_Intersection(s.geom,zone.z)::geography) overlap_m
@@ -87,24 +104,86 @@ def _segment_risk(db,line):
     mean=sum(float(r["risk_score"])*float(r["overlap_m"]) for r in rows)/total
     return round(min(1.0,.72*peak+.28*mean),3),len(rows)
 
-def _route_exposure(line,hazards,radius_m=105):
-    """Risk is based on actual distance between a candidate geometry and hazards."""
-    if not hazards or not line:return 0.0,0
-    sample=line[::max(1,len(line)//180)]
-    exposure=[]
-    for h in hazards:
-        d=min(haversine_m(p[0],p[1],float(h["lat"]),float(h["lon"])) for p in sample)
-        if d<radius_m:
-            # Stronger penalty near the pothole, fading to zero at radius_m.
-            exposure.append(float(h.get("risk") or .5)*(1-d/radius_m))
-    if not exposure:return 0.0,0
+HAZARD_RADIUS_M=105
+REROUTE_MIN_RISK=.42   # the fastest route needs a new route above this risk
+REROUTE_MIN_GAIN=.12   # an alternative must be at least this much safer
+WARNING_TITLE="Danger sur l'itinéraire — aucune alternative sûre"
+# True distance (geography, metres) from each hazard to the whole route LineString. Measuring to route
+# vertices missed hazards lying between two far-apart vertices (OSRM puts few on straight roads).
+_HAZARD_DISTANCE_SQL=text("""
+  WITH r AS (SELECT ST_SetSRID(ST_GeomFromText(:wkt),4326)::geography g),
+  h AS (SELECT t.i, ST_SetSRID(ST_MakePoint(t.lon,t.lat),4326)::geography p
+        FROM unnest(CAST(:lats AS float8[]),CAST(:lons AS float8[])) WITH ORDINALITY AS t(lat,lon,i))
+  SELECT h.i-1 AS idx, ST_Distance(r.g,h.p) AS d FROM r,h WHERE ST_DWithin(r.g,h.p,:radius)
+""")
+
+def _wkt(line):return "LINESTRING("+",".join(f"{lon} {lat}" for lat,lon in line)+")"
+
+def _point_segment_m(lat,lon,a,b):
+    """Distance from a point to segment a-b, local equirectangular metres (fallback without PostGIS)."""
+    k=111320.0*math.cos(math.radians(lat))
+    ax,ay=(a[1]-lon)*k,(a[0]-lat)*110540.0; bx,by=(b[1]-lon)*k,(b[0]-lat)*110540.0
+    dx,dy=bx-ax,by-ay; n=dx*dx+dy*dy
+    t=0.0 if n==0 else max(0.0,min(1.0,-(ax*dx+ay*dy)/n))
+    return math.hypot(ax+t*dx,ay+t*dy)
+
+def _along_route_m(line,lat,lon):
+    """Distance along the route from its start to the point of the route closest to (lat,lon), in metres
+    (display only: "danger à 2,3 km du départ"; decisions use _hazard_distances)."""
+    if len(line)<2:return 0.0
+    k=111320.0*math.cos(math.radians(lat)); best=(math.inf,0.0); run=0.0
+    for a,b in zip(line,line[1:]):
+        ax,ay=(a[1]-lon)*k,(a[0]-lat)*110540.0; bx,by=(b[1]-lon)*k,(b[0]-lat)*110540.0
+        dx,dy=bx-ax,by-ay; n=dx*dx+dy*dy; seg=math.sqrt(n)
+        t=0.0 if n==0 else max(0.0,min(1.0,-(ax*dx+ay*dy)/n))
+        d=math.hypot(ax+t*dx,ay+t*dy)
+        if d<best[0]:best=(d,run+t*seg)
+        run+=seg
+    return best[1]
+
+def _hazard_distances(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
+    """{hazard index: true distance in m to the route} for the hazards within radius_m of the route."""
+    if not hazards or len(line)<2:return {}
+    if db is not None and hasattr(db,"execute"):
+        try:
+            rows=db.execute(_HAZARD_DISTANCE_SQL,{"wkt":_wkt(line),"radius":radius_m,
+                "lats":[float(h["lat"]) for h in hazards],"lons":[float(h["lon"]) for h in hazards]}).mappings().all()
+            return {int(r["idx"]):float(r["d"]) for r in rows}
+        except Exception:
+            db.rollback()  # no PostGIS (tests, fresh DB): exact geometry in Python below
+    out={}
+    for i,h in enumerate(hazards):
+        lat,lon=float(h["lat"]),float(h["lon"])
+        d=min(_point_segment_m(lat,lon,line[j],line[j+1]) for j in range(len(line)-1))
+        if d<=radius_m:out[i]=d
+    return out
+
+def _exposure(h,d,radius_m=HAZARD_RADIUS_M):
+    # Stronger penalty near the pothole, fading to zero at radius_m.
+    return float(h.get("risk") or .5)*(1-d/radius_m)
+
+def _exposure_risk(exposure):
     # Blend peak danger and cumulative exposure; clamp to [0,1].
-    risk=min(1.0,.72*max(exposure)+.28*min(1.0,sum(exposure)/2.0))
-    return round(risk,3),len(exposure)
+    if not exposure:return 0.0
+    return round(min(1.0,.72*max(exposure)+.28*min(1.0,sum(exposure)/2.0)),3)
+
+def _route_exposure(line,hazards,db=None,radius_m=HAZARD_RADIUS_M):
+    """(risk, {hazard index: distance m}) from the actual distance between a candidate and the hazards."""
+    if not hazards or not line:return 0.0,{}
+    near=_hazard_distances(line,hazards,db,radius_m)
+    return _exposure_risk([_exposure(hazards[i],d,radius_m) for i,d in near.items()]),near
+
+def _triggering_hazards(hazards,near):
+    """Hazards that make the fastest route exceed REROUTE_MIN_RISK: each one that does so on its own;
+    if none does alone (only their accumulation does), all hazards on the route. Order-independent."""
+    exp={i:_exposure(hazards[i],d) for i,d in near.items()}
+    alone={i for i,e in exp.items() if _exposure_risk([e])>=REROUTE_MIN_RISK}
+    if alone:return alone
+    return set(exp) if _exposure_risk(list(exp.values()))>=REROUTE_MIN_RISK else set()
 
 def _candidate(route,hazards,db=None):
     line=_line(route)
-    hazard_risk,count=_route_exposure(line,hazards)
+    hazard_risk,near=_route_exposure(line,hazards,db)
     segment_risk,segments=_segment_risk(db,line)
     # max() rather than a probabilistic sum: a segment holding an M1 event already
     # carries that event in its M2 score, so adding both would count it twice.
@@ -112,95 +191,154 @@ def _candidate(route,hazards,db=None):
     distance=float(route["distance"]); duration=float(route["duration"])
     score=round(duration/60 + distance/1000*.32 + risk*22,3)
     return RouteCandidate(distance_m=distance,duration_s=duration,risk=risk,score=score,polyline=line,
-                          hazard_risk=hazard_risk,segment_risk=segment_risk,scored_segments=segments),count
+                          hazard_risk=hazard_risk,segment_risk=segment_risk,scored_segments=segments),near
+
+def _offsets(lat,lon,dlat,dlon,kms):
+    """Waypoints on both sides of (lat,lon), perpendicular to the direction (dlat,dlon)."""
+    dx=dlon*math.cos(math.radians(lat)); dy=dlat
+    norm=math.hypot(dx,dy) or 1.0; px=-dy/norm; py=dx/norm
+    return [(lat+side*py*(km/111.0), lon+side*px*(km/(111.0*max(.2,math.cos(math.radians(lat))))))
+            for km in kms for side in (-1,1)]
+
+def _fetch_via(a,b,waypoints):
+    """OSRM a -> waypoint -> b for each waypoint, in parallel (I/O bound); failed lookups are skipped."""
+    def one(w):
+        try:
+            found=_fetch_osrm([a,w,b],0)
+            return found[0] if found else None
+        except HTTPException:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return [r for r in pool.map(one,waypoints) if r]
 
 def _detour_routes(req):
-    """Ask OSRM for road-following corridors on both sides of the direct route.
+    """Ask OSRM for road-following corridors on both sides of the direct route (around the trip midpoint).
     The waypoint is only a search hint; returned geometry still follows real roads.
     """
     a=(req.current_lat,req.current_lon); b=(req.destination_lat,req.destination_lon)
-    mid_lat=(a[0]+b[0])/2; mid_lon=(a[1]+b[1])/2
-    # Perpendicular unit vector in local lat/lon coordinates.
-    dx=(b[1]-a[1])*math.cos(math.radians(mid_lat)); dy=b[0]-a[0]
-    norm=math.hypot(dx,dy) or 1.0; px=-dy/norm; py=dx/norm
-    routes=[]
     # 0.9-2.7 km lateral search gives visibly distinct but still practical corridors.
-    for km in (0.9,1.4,2.0,2.7):
-        for side in (-1,1):
-            lat=mid_lat + side*py*(km/111.0)
-            lon=mid_lon + side*px*(km/(111.0*max(.2,math.cos(math.radians(mid_lat)))))
-            try:
-                found=_fetch_osrm([a,(lat,lon),b],0)
-                if found: routes.append(found[0])
-            except HTTPException:
-                continue
-    return routes
+    return _fetch_via(a,b,_offsets((a[0]+b[0])/2,(a[1]+b[1])/2,b[0]-a[0],b[1]-a[1],(0.9,1.4,2.0,2.7)))
+
+HAZARD_DETOUR_KM=(0.5,1.0,2.0,3.0)
+HAZARD_CLUSTER_M=500   # hazards closer than this share one detour search
+MAX_HAZARD_CLUSTERS=6  # bounds the extra OSRM calls (6 x 8)
+
+def _hazard_detours(req,line,hazards):
+    """Corridors around each hazard to avoid: waypoints perpendicular to the fastest route at the hazard.
+    The midpoint search alone cannot get around a hazard far from the middle of the trip."""
+    if not hazards or len(line)<2:return []
+    a=(req.current_lat,req.current_lon); b=(req.destination_lat,req.destination_lon)
+    centres=[]
+    for h in hazards:
+        p=(float(h["lat"]),float(h["lon"]))
+        if all(haversine_m(p[0],p[1],c[0],c[1])>HAZARD_CLUSTER_M for c in centres):centres.append(p)
+    waypoints=[]
+    for lat,lon in centres[:MAX_HAZARD_CLUSTERS]:
+        i=min(range(len(line)),key=lambda k:haversine_m(line[k][0],line[k][1],lat,lon))
+        p,q=line[max(0,i-3)],line[min(len(line)-1,i+3)]
+        waypoints+=_offsets(lat,lon,q[0]-p[0],q[1]-p[1],HAZARD_DETOUR_KM)
+    return _fetch_via(a,b,waypoints)
+
+def _geometry_key(route):
+    return hash(tuple((round(lon,5),round(lat,5)) for lon,lat in route["geometry"]["coordinates"]))
+
+_GRID_DEG=0.0006  # >= 45 m in latitude and longitude up to ~48 deg N, so a 3x3 cell search is exact
 
 def _different_enough(a,b):
     """Reject an 'alternative' that visually sits on top of the initial route."""
     if not a or not b:return False
     bs=b[::max(1,len(b)//120)]; aa=a[::max(1,len(a)//120)]
-    near=sum(1 for p in aa if min(haversine_m(p[0],p[1],q[0],q[1]) for q in bs)<45)
+    grid={}
+    for q in bs:grid.setdefault((int(q[0]//_GRID_DEG),int(q[1]//_GRID_DEG)),[]).append(q)
+    def close(p):
+        i,j=int(p[0]//_GRID_DEG),int(p[1]//_GRID_DEG)
+        return any(haversine_m(p[0],p[1],q[0],q[1])<45
+                   for di in (-1,0,1) for dj in (-1,0,1) for q in grid.get((i+di,j+dj),()))
+    near=sum(1 for p in aa if close(p))
     return near/max(1,len(aa)) < .78
 
 @router.post("/route",response_model=RouteResponse)
 def get_route(req:RouteRequest,db:Session=Depends(get_db)):
+    if _covered(db,req.current_lat,req.current_lon) is False: raise HTTPException(422,P.OUT_OF_ZONE_START)
+    if _covered(db,req.destination_lat,req.destination_lon) is False: raise HTTPException(422,P.OUT_OF_ZONE_DESTINATION)
     routes=_osrm(req)
     if not routes:
         raise HTTPException(404,"No route found")
 
     hazards=_risk_points(db)
     fastest_route=min(routes,key=lambda r:r["duration"])
-    fastest,fast_count=_candidate(fastest_route,hazards,db)
+    fastest,fast_near=_candidate(fastest_route,hazards,db)
+    # An alternative must stay > HAZARD_RADIUS_M from every hazard that made the fastest route risky.
+    trigger=_triggering_hazards(hazards,fast_near) if fastest.hazard_risk>=REROUTE_MIN_RISK else set()
 
     pool=[]
     for route in routes:
-        candidate,count=_candidate(route,hazards,db)
-        pool.append((candidate,count))
+        candidate,near=_candidate(route,hazards,db)
+        pool.append((candidate,near))
 
     # If the fastest route is exposed to a meaningful road risk, search additional
     # road-following corridors. This preserves the next-best-route behaviour while
     # using only real RoadEvents / validated citizen reports from PostgreSQL.
     # (M2 segment risk can trigger this too, even with no point hazard nearby.)
-    if fastest.risk >= .42:
-        for route in _detour_routes(req):
-            candidate,count=_candidate(route,hazards,db)
-            if _different_enough(fastest.polyline,candidate.polyline):
-                pool.append((candidate,count))
+    if fastest.risk >= REROUTE_MIN_RISK:
+        # most dangerous first: MAX_HAZARD_CLUSTERS bounds the search
+        to_avoid=[hazards[i] for i in sorted(trigger,key=lambda i:-_exposure(hazards[i],fast_near[i]))]
+        # many waypoints snap to the same OSRM route: score each distinct route once
+        seen={_geometry_key(r) for r in routes}
+        for route in _detour_routes(req)+_hazard_detours(req,fastest.polyline,to_avoid):
+            key=_geometry_key(route)
+            if key in seen or not _different_enough(fastest.polyline,_line(route)):continue
+            seen.add(key)
+            pool.append(_candidate(route,hazards,db))
 
     # Deduplicate geometrically equivalent candidates, then rank by the composite
     # time + distance + risk cost.
     unique=[]
-    for candidate,count in sorted(pool,key=lambda x:x[0].score):
+    for candidate,near in sorted(pool,key=lambda x:x[0].score):
         if not any(not _different_enough(candidate.polyline,existing.polyline) for existing,_ in unique):
-            unique.append((candidate,count))
+            unique.append((candidate,near))
 
+    eligible=[candidate for candidate,near in unique
+              if candidate.polyline != fastest.polyline
+              and _different_enough(fastest.polyline,candidate.polyline)
+              and not (trigger & near.keys())]  # avoids every triggering hazard
     safer_pair=next((
-        (candidate,count) for candidate,count in unique
+        (candidate,near) for candidate,near in unique
         if candidate.polyline != fastest.polyline
         and _different_enough(fastest.polyline,candidate.polyline)
-        and candidate.risk + .12 < fastest.risk
+        and not (trigger & near.keys())  # eligible: avoids every triggering hazard
+        and candidate.risk + REROUTE_MIN_GAIN < fastest.risk
     ),None)
 
-    reroute=safer_pair is not None and fastest.risk >= .42
-    best,best_count=safer_pair if reroute else (fastest,fast_count)
+    reroute=safer_pair is not None and fastest.risk >= REROUTE_MIN_RISK
+    best,best_near=safer_pair if reroute else (fastest,fast_near)
+    fast_count,best_count=len(fast_near),len(best_near)
+    warning=not reroute and fastest.risk >= REROUTE_MIN_RISK
+    counts=f"{fast_count} danger(s) sur le trajet initial, {best_count} sur l'alternative"
     if reroute and fastest.segment_risk > fastest.hazard_risk:
-        reason=(
-            f"Le trajet initial emprunte des segments à risque M2 élevé ({fastest.segment_risk:.0%}) ; "
-            f"l'alternative ramène le risque à {best.risk:.0%}."
-        )
+        reason=(f"Segments à risque M2 élevé ({fastest.segment_risk:.0%}) sur le trajet initial ; "
+                f"{counts} ; risque {fastest.risk:.0%} → {best.risk:.0%}.")
     elif reroute:
-        reason=(
-            f"{fast_count} danger(s) routier(s) affectent le trajet initial ; "
-            f"l'alternative réduit l'exposition à {best_count}."
-        )
+        reason=f"{counts} ; risque {fastest.risk:.0%} → {best.risk:.0%}."
+    elif warning:
+        cause=(f"{fast_count} danger(s) sur le trajet initial" if fast_count
+               else f"segments à risque M2 élevé ({fastest.segment_risk:.0%})")
+        reason=(f"{WARNING_TITLE} : {cause}, risque {fastest.risk:.0%} ; "
+                f"aucun itinéraire ne les évite (à plus de {HAZARD_RADIUS_M} m) en étant au moins "
+                f"{REROUTE_MIN_GAIN:.0%} plus sûr.")
     else:
-        reason="Itinéraire normal conservé : aucune alternative ne réduit suffisamment le risque."
+        reason=f"Itinéraire normal conservé : risque {fastest.risk:.0%}, sous le seuil de {REROUTE_MIN_RISK:.0%}."
+    listed=sorted(trigger,key=lambda i:-_exposure(hazards[i],fast_near[i]))
+    hazard_info=[HazardInfo(type=str(hazards[i].get("event_type") or "hazard"),latitude=float(hazards[i]["lat"]),
+                            longitude=float(hazards[i]["lon"]),risk=round(float(hazards[i].get("risk") or .5),3),
+                            distance_m=round(fast_near[i],1),
+                            distance_from_start_m=round(_along_route_m(fastest.polyline,float(hazards[i]["lat"]),
+                                                                       float(hazards[i]["lon"])))) for i in listed]
     alternatives=[candidate for candidate,_ in unique if candidate.polyline != best.polyline][:4]
 
     return RouteResponse(
         route_id=str(uuid4()),
-        status="rerouted" if reroute else "normal_route",
+        status="rerouted" if reroute else ("warning" if warning else "normal_route"),
         risk=best.risk,
         polyline=best.polyline,
         score=best.score,
@@ -217,6 +355,10 @@ def get_route(req:RouteRequest,db:Session=Depends(get_db)):
         hazards_on_best=best_count,
         fastest_segment_risk=fastest.segment_risk,
         best_segment_risk=best.segment_risk,
+        warning=warning,
+        hazards=hazard_info,
+        eligible_alternatives=len(eligible),
+        best_eligible_risk=min((c.risk for c in eligible),default=None),
     )
 
 @router.get("/geocode")
@@ -227,6 +369,28 @@ def geocode(q:str=Query(min_length=2,max_length=120)):
         with urllib.request.urlopen(request,timeout=5) as r: rows=json.load(r)
         return [{"label":x.get("display_name",q),"lat":float(x["lat"]),"lon":float(x["lon"])} for x in rows]
     except Exception:return []
+
+@router.get("/places")
+def search_places(q:str=Query(min_length=1,max_length=120),limit:int=Query(8,ge=1,le=20),db:Session=Depends(get_db)):
+    """Destination search in the TN-23 place index (scripts/build_places_index.py)."""
+    key=P.normalize(q)
+    if len(key)<2:return []
+    try:
+        rows=db.execute(text(P.SEARCH_SQL),{"q":key,"limit":limit}).mappings().all()
+    except Exception:
+        db.rollback(); raise HTTPException(503,"Index des lieux indisponible")
+    return [P.place_row(r) for r in rows]
+
+@router.get("/places/nearest")
+def nearest_place(lat:float=Query(ge=-90,le=90),lon:float=Query(ge=-180,le=180),db:Session=Depends(get_db)):
+    """Name of the closest indexed place to a map click, and whether the point is in the covered zone."""
+    covered=_covered(db,lat,lon)
+    try:
+        row=db.execute(text(P.NEAREST_SQL),{"lat":lat,"lon":lon,"radius":P.NEAREST_RADIUS_M}).mappings().first()
+    except Exception:
+        db.rollback(); row=None
+    return {"place":P.place_row(row) if row else None,"covered":covered,
+            "message":P.OUT_OF_ZONE_DESTINATION if covered is False else None}
 
 @router.get("/official-routes")
 def list_routes(db:Session=Depends(get_db)):
@@ -253,9 +417,60 @@ def list_assignments(db:Session=Depends(get_db),user=Depends(require_role("trans
 def driver_route(db:Session=Depends(get_db),user=Depends(require_role("bus_driver"))):
     rows=db.execute(text("""SELECT ra.id::text assignment_id,r.route_code,r.name,v.vehicle_code,v.label,ST_AsGeoJSON(r.geom)::json geometry,r.metadata FROM route_assignments ra JOIN official_routes r ON r.id=ra.route_id JOIN vehicles v ON v.id=ra.vehicle_id WHERE ra.driver_username=:u AND ra.active ORDER BY ra.created_at DESC"""),{"u":user["sub"]}).mappings().all(); return list(rows)
 
+DRIVER_ALERT_TOPICS=("driver.reroute.alert","driver.route.warning")
+
+def _line_key(req):
+    return f"{req.vehicle_id}:{req.destination_lat:.4f},{req.destination_lon:.4f}"
+
+def _hazard_key(hazards):
+    return "|".join(sorted(f"{h.type}@{h.latitude:.5f},{h.longitude:.5f}" for h in hazards))
+
+def _alert_action(active,topic,hazard_key):
+    """Decide from the active alerts of this driver/line (newest first): ('refresh', id) when the latest has
+    the same decision and hazard set, else ('new', ids to supersede); topic None (normal route) -> ('resolve', ids)."""
+    ids=[a["id"] for a in active]
+    if topic is None:return ("resolve",ids) if ids else ("none",[])
+    if active and active[0]["topic"]==topic and active[0]["hazard_key"]==hazard_key:return ("refresh",ids[:1])
+    return ("new",ids)
+
+_ACTIVE_ALERTS_SQL=text("""
+  SELECT id::text,topic,payload->>'hazard_key' hazard_key FROM notification_outbox
+  WHERE recipient_ref=:u AND topic IN ('driver.reroute.alert','driver.route.warning') AND status='pending'
+    AND payload->>'line_key'=:k AND NOT coalesce((payload->>'superseded')::boolean,false)
+  ORDER BY created_at DESC""")
+
+def _driver_alert(db,driver,topic,payload,line_key,hazard_key):
+    """One active alert per driver and line. Same decision + same hazards: refresh it (created_at is kept, so
+    the SSE stream does not push it again); otherwise supersede it and publish a new one."""
+    active=db.execute(_ACTIVE_ALERTS_SQL,{"u":driver,"k":line_key}).mappings().all()
+    action,ids=_alert_action(active,topic,hazard_key)
+    if action=="refresh":
+        db.execute(text("""UPDATE notification_outbox SET payload=payload||jsonb_build_object(
+            'last_confirmed_at',CAST(now() AS text),'confirmations',coalesce((payload->>'confirmations')::int,1)+1,
+            'risk',CAST(:risk AS float8),'reason',CAST(:reason AS text)) WHERE id=CAST(:id AS uuid)"""),
+            {"id":ids[0],"risk":payload["risk"],"reason":payload["reason"]})
+    elif ids:
+        db.execute(text("""UPDATE notification_outbox SET payload=payload||jsonb_build_object('superseded',true,
+            'superseded_note',CAST(:note AS text)) WHERE id=ANY(CAST(:ids AS uuid[]))"""),
+            {"ids":ids,"note":"Itinéraire redevenu normal" if action=="resolve" else "Remplacée : décision ou dangers changés"})
+    if action=="new":
+        publish(db,topic,{**payload,"line_key":line_key,"hazard_key":hazard_key,"confirmations":1},driver)
+    db.commit()
+    return {"refresh":"refreshed","new":"new","resolve":"resolved"}.get(action,"none")
+
 @router.post("/driver/next-best",response_model=RouteResponse)
 def driver_next_best(req:RouteRequest,db:Session=Depends(get_db),user=Depends(require_role("bus_driver"))):
     response=get_route(req,db)
+    common={"vehicle_id":req.vehicle_id,"risk":response.fastest_risk,"reason":response.reason,
+            "route_id":response.route_id,"hazards_on_initial":response.hazards_on_initial,
+            "logic_version":response.logic_version}
     if response.reroute_needed:
-        publish(db,"driver.reroute.alert",{"vehicle_id":req.vehicle_id,"risk":response.fastest_risk,"reason":response.reason,"route_id":response.route_id},user["sub"]); db.commit()
+        topic,payload="driver.reroute.alert",{**common,"hazards_on_alternative":response.hazards_on_best,
+                                              "alternative_risk":response.risk}
+    elif response.warning:
+        topic,payload="driver.route.warning",{**common,"title":WARNING_TITLE,
+                                              "hazards":[h.model_dump() for h in response.hazards]}
+    else:
+        topic,payload=None,common
+    response.alert_state=_driver_alert(db,user["sub"],topic,payload,_line_key(req),_hazard_key(response.hazards))
     return response

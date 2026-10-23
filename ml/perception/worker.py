@@ -151,7 +151,7 @@ def _upsert_observation(
                       observed_at=GREATEST(observed_at,:captured),
                       updated_at=now(),
                       payload=payload || jsonb_build_object(
-                        'last_model',:model,
+                        'last_model',CAST(:model AS text),
                         'observation_count',COALESCE((payload->>'observation_count')::int,0)+1
                       )
                   WHERE id=:id
