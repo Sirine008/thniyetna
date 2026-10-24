@@ -26,6 +26,8 @@ test('states, alerts, roles, classes, levels', () => {
   assert.equal(roleLabel('bus_driver'), 'Conducteur de bus');
   assert.equal(roadClassLabel('national'), 'Route nationale');
   assert.equal(roadClassLabel(null), '—');
+  assert.equal(roadClassLabel('primary'), 'Route principale');
+  assert.equal(roadClassLabel('motorway_link'), 'Bretelle d’autoroute');
   assert.equal(riskLabel('critical'), 'Critique');
   assert.equal(priorityLabel('P2'), 'P2 · Prioritaire');
 });

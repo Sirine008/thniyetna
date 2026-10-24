@@ -6,6 +6,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = process.argv[2];
 const ONLY = (process.argv[3] || '').split(',').filter(Boolean);
@@ -88,7 +89,15 @@ export async function focusVisible(page, label) {
 
 browser = await chromium.launch({ channel: 'msedge', headless: true });
 const groups = await import('./check-ui-scenarios.mjs');
-await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) } });
+// UI rules shared with the app (pure modules), to compute expected values independently of the screen
+const lib = async name => import(pathToFileURL(path.join(ROOT, 'frontend', 'src', 'lib', `${name}.js`)).href);
+/** Authenticated API GET for a role (reference data for the checks). */
+const apiAs = async (role, p) => {
+  const s = JSON.parse(await sessionFor(USERS[role] || role));
+  const r = await fetch(`${BASE}/api${p}`, { headers: { Authorization: `Bearer ${s.access_token}` } });
+  return r.json();
+};
+await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) }, lib, apiAs });
 await browser.close();
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${failed.length ? ` — FAILED: ${failed.map(f => f.name).join(' | ')}` : ''}`);

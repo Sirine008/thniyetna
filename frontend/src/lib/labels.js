@@ -73,7 +73,14 @@ export const CONDITIONS = {
   no_observed_defect: 'Aucun défaut observé', good: 'Bon', fair: 'Moyen', poor: 'Dégradé', critical: 'Critique',
 };
 export const conditionLabel = lookup(CONDITIONS);
-export const ROAD_CLASSES = { motorway: 'Autoroute', national: 'Route nationale', regional: 'Route régionale', local: 'Route locale', urban: 'Voie urbaine' };
+// M2 road classes (model features) and the OSM highway tags stored on road_segments.road_class
+export const ROAD_CLASSES = {
+  motorway: 'Autoroute', national: 'Route nationale', regional: 'Route régionale', local: 'Route locale', urban: 'Voie urbaine',
+  trunk: 'Voie express', primary: 'Route principale', secondary: 'Route secondaire', tertiary: 'Route tertiaire',
+  unclassified: 'Route non classée', residential: 'Voie résidentielle',
+  motorway_link: 'Bretelle d’autoroute', trunk_link: 'Bretelle de voie express', primary_link: 'Bretelle (route principale)',
+  secondary_link: 'Bretelle (route secondaire)', tertiary_link: 'Bretelle (route tertiaire)',
+};
 export const roadClassLabel = value => (value ? ROAD_CLASSES[value] ?? readable(value) : '—');
 
 /** M2 factor (top_factors item) as a readable phrase: "Route nationale — augmente le risque". */

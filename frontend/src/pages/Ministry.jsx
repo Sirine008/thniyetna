@@ -6,15 +6,21 @@ import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
 import { Button, Notice, useToast } from '../ui';
 import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
-import { LegacyAccounts, LegacyAssignments, LegacyAssistant, LegacyEvents, LegacyFleet, LegacyInspections, LegacyMetrics, LegacyNetwork, LegacyPriorities, LegacyReports } from './ministry/legacy';
+import { LegacyAccounts, LegacyAssignments, LegacyAssistant, LegacyFleet, LegacyMetrics, LegacyNetwork } from './ministry/legacy';
+import Detections from './ministry/Detections';
+import EquipmentHome from './ministry/EquipmentHome';
+import Inspections from './ministry/Inspections';
+import Priorities from './ministry/Priorities';
+import Reports from './ministry/Reports';
 
 // Sections of each ministry: URL `?vue=<key>` (so KPI tiles and links can open a filtered list).
 const SECTIONS = {
   equipment: [
-    { key: 'signalements', label: 'Signalements', icon: Inbox, count: w => w.dashboard.open_complaints, view: LegacyReports },
-    { key: 'detections', label: 'Détections', icon: ScanSearch, count: w => w.dashboard.unvalidated_events, view: LegacyEvents },
-    { key: 'priorites', label: 'Priorités d’entretien', icon: Wrench, view: LegacyPriorities },
-    { key: 'inspections', label: 'Inspections', icon: Truck, view: LegacyInspections },
+    { key: 'accueil', label: 'Accueil', icon: Gauge, view: EquipmentHome },
+    { key: 'signalements', label: 'Signalements', icon: Inbox, count: w => w.dashboard.open_complaints, view: Reports },
+    { key: 'detections', label: 'Détections', icon: ScanSearch, count: w => w.dashboard.unvalidated_events, view: Detections },
+    { key: 'priorites', label: 'Priorités d’entretien', icon: Wrench, view: Priorities },
+    { key: 'inspections', label: 'Inspections', icon: Truck, view: Inspections },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: LegacyAssistant },
     { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
   ],
@@ -47,7 +53,7 @@ export default function Ministry({ ministry }) {
       <Button icon={RefreshCw} loading={w.loading} onClick={w.reload}>{w.loading ? 'Actualisation…' : 'Actualiser'}</Button>
     </div>
     {w.error && <Notice tone="error" title={w.error}/>}
-    <LegacyMetrics w={w}/>
+    {!w.isEquipment && <LegacyMetrics w={w}/>}
     <View w={w} me={me} onSheet={setSheetSegment} params={params}/>
     {sheetSegment && <InterventionSheet segment={sheetSegment} onClose={() => setSheetSegment(null)}/>}
   </SupervisorLayout>;

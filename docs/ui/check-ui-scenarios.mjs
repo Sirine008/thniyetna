@@ -1,5 +1,5 @@
 // Scenarios of check-ui.mjs, one group per redesigned screen.
-export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS }) {
+export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs }) {
   // ------------------------------------------------------------ design system reference
   await scenario('design', 'equipment', async (page, { view, shot, noScroll }) => {
     await page.goto(`${BASE}/design`);
@@ -117,4 +117,89 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       check(`layout ${role} ${view}: bottom navigation targets >= 44 px`, heights.every(h => h >= 44), heights.join(','));
     }, { views: ['mobile'] });
   }
+
+  // ------------------------------------------------------------ 3. equipment supervisor
+  const segLib = await lib('segments');
+  const dash = await apiAs('equipment', '/platform/dashboard/equipment');
+  const complaints = await apiAs('equipment', '/platform/complaints');
+  const events = await apiAs('equipment', '/perception/events?limit=100');
+  const map = await (await fetch(`${BASE}/api/platform/map`)).json();
+  const tableRows = page => page.locator('.table tbody tr').count();
+  const countText = async page => { await page.waitForSelector('.table tbody tr, .empty-state'); return Number((await page.locator('.toolbar-count').textContent()).match(/\d+/)[0]); };
+
+  await scenario('equipment', 'equipment', async (page, { view, shot, calls, noScroll }) => {
+    await page.goto(`${BASE}/ministry/equipment`);
+    await page.waitForSelector('.kpi');
+    const kpis = await page.locator('.kpi .kpi-value').allTextContents();
+    check(`equipment home ${view}: KPI values are the dashboard API counts`, JSON.stringify(kpis.map(Number)) === JSON.stringify([dash.open_complaints, dash.unvalidated_events, dash.events_24h, dash.active_inspections]), kpis.join(','));
+    await noScroll('home'); await focusVisible(page, `equipment home ${view}`); await shot('home');
+    await page.locator('.kpi').first().click();
+    await page.waitForURL(/statut=a-traiter/);
+    await page.waitForSelector('.toolbar-count');
+    check(`equipment ${view}: open-reports tile opens the filtered list with the same count`, (await countText(page)) === dash.open_complaints, `${await countText(page)} / ${dash.open_complaints}`);
+
+    // signalements: all by default (as before), side panel, history, status change request
+    await page.goto(`${BASE}/ministry/equipment?vue=signalements`);
+    await page.waitForSelector('.toolbar-count');
+    check(`equipment reports ${view}: all reports listed by default`, (await countText(page)) === complaints.length, `${await countText(page)} / ${complaints.length}`);
+    check(`equipment reports ${view}: paginated (20 rows max)`, (await tableRows(page)) === Math.min(20, complaints.length));
+    await noScroll('reports'); await shot('reports');
+    const target = complaints.find(c => c.status === 'open') || complaints[0];
+    await page.goto(`${BASE}/ministry/equipment?vue=signalements&signalement=${target.id}`);
+    await page.waitForSelector('.side-panel .timeline, .side-panel .notice-error', { timeout: 15000 });
+    check(`equipment reports ${view}: panel loads the history (GET history)`, calls.some(c => c.path === `/platform/complaints/${target.id}/history`));
+    check(`equipment reports ${view}: panel shows the mini-map`, await page.waitForSelector('.side-panel .leaflet-container', { timeout: 10000 }).then(() => true, () => false));
+    const select = page.locator('.side-panel select');
+    const shown = await select.inputValue();
+    check(`equipment reports ${view}: default target status as before`, shown === (target.status === 'open' ? 'under_review' : target.status), shown);
+    await page.locator('.side-panel textarea').fill('Vérification UI');
+    await shot('report-panel');
+    await page.getByRole('button', { name: 'Enregistrer le statut' }).click();
+    await page.waitForTimeout(800);
+    const patch = calls.find(c => c.method === 'PATCH');
+    check(`equipment reports ${view}: same PATCH as before`, patch && patch.path === `/platform/complaints/${target.id}/status` && patch.body === JSON.stringify({ status: shown, note: 'Vérification UI' }), patch?.body);
+    check(`equipment reports ${view}: success toast`, (await page.locator('.toast').count()) >= 1);
+    await page.keyboard.press('Escape');
+
+    // détections: pending by default, photo with box, validate request
+    await page.goto(`${BASE}/ministry/equipment?vue=detections`);
+    await page.waitForSelector('.toolbar-count');
+    const pending = events.filter(e => !e.validated);
+    check(`equipment detections ${view}: only detections to validate by default (as before)`, (await countText(page)) === pending.length, `${await countText(page)} / ${pending.length}`);
+    await noScroll('detections'); await shot('detections');
+    const withObs = await apiAs('equipment', '/perception/observations?limit=500');
+    const ev = pending.find(e => withObs.some(o => o.event_id === e.id && o.bbox_xyxy)) || pending[0];
+    if (ev) {
+      await page.goto(`${BASE}/ministry/equipment?vue=detections&detection=${ev.id}`);
+      await page.waitForSelector('.side-panel');
+      await page.waitForSelector('.side-panel img', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const boxes = await page.locator('.side-panel .image-boxes svg rect').count();
+      const expected = withObs.filter(o => o.event_id === ev.id && o.bbox_xyxy).length;
+      check(`equipment detections ${view}: photo with the model box`, expected ? boxes >= 1 : true, `${boxes / 2} box(es), ${expected} observation(s)`);
+      check(`equipment detections ${view}: French class and percentages`, /Confiance du modèle\d+\s%/.test(await page.locator('.side-panel').textContent()));
+      await shot('detection-panel');
+      await page.locator('.side-panel-foot').getByRole('button', { name: 'Valider la détection' }).click();
+      await page.waitForTimeout(800);
+      const v = calls.find(c => c.method === 'PATCH' && c.path.startsWith('/perception/events/'));
+      check(`equipment detections ${view}: same validate request`, v && v.path === `/perception/events/${ev.id}/validate` && !v.body, v?.path);
+    }
+
+    // priorités: same worklist as before, table + map in sync
+    await page.goto(`${BASE}/ministry/equipment?vue=priorites`);
+    await page.waitForSelector('.toolbar-count');
+    const queue = segLib.maintenanceQueue(map.segments);
+    check(`equipment priorities ${view}: same worklist size as before`, (await countText(page)) === queue.length, `${await countText(page)} / ${queue.length}`);
+    await page.waitForSelector('.leaflet-overlay-pane path', { timeout: 15000 });
+    check(`equipment priorities ${view}: segments drawn on the map`, (await page.locator('.leaflet-overlay-pane path').count()) >= Math.min(queue.length, 1));
+    if (queue.length) {
+      await page.locator('.table tbody tr').first().click();
+      await page.waitForURL(/segment=/);
+      check(`equipment priorities ${view}: row click selects the segment`, (await page.locator('.table tbody tr.is-selected').count()) === 1);
+    }
+    await noScroll('priorities'); await shot('priorities');
+    await page.goto(`${BASE}/ministry/equipment?vue=inspections`);
+    await page.waitForSelector('.empty-state, .table');
+    await noScroll('inspections'); await shot('inspections');
+  }, { replies: { 'status$': e => ({ id: e.path.split('/')[3], status: JSON.parse(e.body).status }), 'validate$': () => ({ status: 'validated' }) } });
 }

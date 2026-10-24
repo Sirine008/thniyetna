@@ -72,6 +72,9 @@ export const api = {
   equipmentDashboard: () => request('/platform/dashboard/equipment', { auth: true }),
   complaints: () => request('/platform/complaints', { auth: true }),
   updateComplaint: (id, body) => request(`/platform/complaints/${id}/status`, { auth: true, method: 'PATCH', body }),
+  // read-only, existing endpoints used by the redesigned detail panels
+  complaintHistory: id => request(`/platform/complaints/${encodeURIComponent(id)}/history`, { auth: true }),
+  observations: (limit = 500) => request(`/perception/observations?limit=${limit}`, { auth: true }),
   roadEvents: () => request('/perception/events?limit=100', { auth: true }),
   validateEvent: id => request(`/perception/events/${id}/validate`, { auth: true, method: 'PATCH' }),
   inspections: () => request('/perception/inspections?limit=100', { auth: true }),

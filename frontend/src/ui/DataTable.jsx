@@ -64,7 +64,7 @@ export function DataTable({ columns, rows, rowKey, initialSort, pageSize = 20, o
             onClick={clickable ? () => onRowClick(row) : undefined}
             onKeyDown={clickable ? e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onRowClick(row); } } : undefined}
             tabIndex={clickable ? 0 : undefined} aria-label={clickable && rowLabel ? rowLabel(row) : undefined}>
-            {columns.map(c => <td key={c.key} data-label={c.label} className={c.num ? 'num' : undefined}>{c.render ? c.render(row) : (row[c.key] ?? '—')}</td>)}
+            {columns.map(c => <td key={c.key} data-label={c.label} className={c.num ? 'num' : undefined}><div className="td-inner">{c.render ? c.render(row) : (row[c.key] ?? '—')}</div></td>)}
           </tr>;
         })}</tbody>
       </table>
