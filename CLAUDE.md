@@ -81,6 +81,15 @@ history carries the signal · trees do not beat logistic regression · accident 
   worker image (`perception.pilot`, `perception.benchmark --source`), not in `ml/.venv` (no torch there).
 - Pilot photos `data/m1/pilot/` and outputs `data/m1/pilot_out/` are gitignored; never commit them.
 - Known: potholes in close-up citizen photos are missed (0/7 on the pilot). Do not claim local accuracy.
+- Inspection video (since 2026-10-24): screen `/inspection` (role inspection_vehicle) or `scripts/demo_video.py`
+  (DÉMO, via the API). Frames at `M1_VIDEO_FPS` (default 3; `.env` sets 5), ByteTrack, one defect per track with its
+  best frame saved under `frames/`; GPS from a GPX in the job options (`gpx`, `gps_offset_s`, `video_started_at`) or
+  the session heartbeats; no GPS → observations only, no road event. Job result = duration, frames, processing time,
+  detections before / after tracking, GPS source. Test video + GPX in `data/m1/video_sample/` (gitignored).
+  To process a video:
+  1. `ml\.venv\Scripts\python.exe -X utf8 scripts/make_demo_gpx.py --seconds <≥ video length> --out data/m1/video_sample/x.gpx` (synthetic DÉMO track) or use a real GPX;
+  2. `ml\.venv\Scripts\python.exe -X utf8 scripts/demo_video.py --video <file> --gpx <file.gpx> [--offset s]`
+     (the perception worker must run: `--profile m1`; AV1 is not decodable on CPU → use H.264 or VP9).
 
 ## Demo data (scripts/seed_demo.py)
 - Needs the stack with `--profile m2 --profile m1` (perception-worker) and photos in `data/m1/pilot/`. Run from the repo
