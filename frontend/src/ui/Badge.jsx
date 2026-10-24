@@ -29,9 +29,9 @@ const REPORT = {
   open: ['orange', Inbox], under_review: ['yellow', Search], validated: ['primary', CircleCheck],
   planned: ['primary', CalendarClock], resolved: ['green', CheckCheck], rejected: ['neutral', CircleX],
 };
-export function ReportStateBadge({ status }) {
+export function ReportStateBadge({ status, label }) {
   const [tone, icon] = REPORT[status] || ['neutral', null];
-  return <Badge tone={tone} icon={icon}>{reportStateLabel(status)}</Badge>;
+  return <Badge tone={tone} icon={icon}>{label || reportStateLabel(status)}</Badge>;
 }
 
 export function EventStateBadge({ validated, status }) {

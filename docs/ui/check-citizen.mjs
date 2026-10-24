@@ -57,7 +57,7 @@ const waitCard = page => page.waitForSelector('.route-verdict, .route-error', { 
   // 3. « Ma position » is the first suggestion of Départ
   await fromField(page).click();
   const first = (await page.getByRole('option').first().textContent()) || '';
-  check('« Ma position » first in Départ', first.startsWith('⌖Ma position'), first);
+  check('« Ma position » first in Départ', first.trim().startsWith('Ma position'), first);
   await shot(page, 'citizen-desktop-start-suggestions.png');
   await page.getByRole('option', { name: /Ma position/ }).click();
   await page.waitForFunction(() => document.querySelector('.th-marker.user'));

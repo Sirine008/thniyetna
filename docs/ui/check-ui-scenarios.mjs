@@ -345,4 +345,44 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       await noScroll('alerts'); await shot('alerts');
     }, { geolocation: GEO });
   }
+
+  // ------------------------------------------------------------ 7. citizen (route page logic: docs/ui/check-citizen.mjs)
+  {
+    const GEO = { latitude: 37.2700, longitude: 9.8600 };
+    const mineRef = await apiAs('citizen', '/platform/complaints/mine');
+    await scenario('citizen', 'citizen', async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/citizen`);
+      await page.waitForSelector('.nav-welcome');
+      check(`citizen route ${view}: functional title, no slogan`, (await page.locator('.nav-welcome h1').textContent()) === 'Vérifier un itinéraire' && !(await page.content()).includes('Voyagez avec'));
+      check(`citizen route ${view}: no emoji in the place suggestions`, await page.locator('.trip-box').evaluate(el => !/\p{Extended_Pictographic}/u.test(el.textContent)));
+      await noScroll('route'); await shot('route');
+      await page.goto(`${BASE}/citizen?from=37.274400,9.873900&to=37.040000,9.665000`);
+      await page.waitForSelector('.route-verdict', { timeout: 45000 });
+      await shot('route-warning');
+
+      await page.goto(`${BASE}/citizen/report`);
+      await page.waitForSelector('form');
+      await page.waitForFunction(() => document.body.textContent.includes('position GPS'));
+      await page.getByLabel('Inondation').check();
+      await page.getByLabel('Description').fill('Chaussée inondée — contrôle UI');
+      await page.locator('input[type=file]').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+      await noScroll('report'); await shot('report');
+      await page.getByRole('button', { name: 'Envoyer le signalement' }).click();
+      await page.waitForURL(/\/citizen$/, { timeout: 10000 });
+      const upload = calls.find(c => c.method === 'POST' && c.path === '/media/image');
+      const claim = calls.find(c => c.method === 'POST' && c.path === '/platform/complaints');
+      check(`citizen report ${view}: photo uploaded first (POST /media/image)`, !!upload && calls.indexOf(upload) < calls.indexOf(claim));
+      check(`citizen report ${view}: same complaint request`, claim && claim.body === JSON.stringify({ description: 'Chaussée inondée — contrôle UI', latitude: GEO.latitude, longitude: GEO.longitude, category: 'flooding', image_url: '/media/files/ui-check.png', image_storage_key: 'ui-check' }), claim?.body);
+      check(`citizen report ${view}: back to the route page after success (as before)`, page.url().endsWith('/citizen'));
+
+      await page.goto(`${BASE}/citizen/claims`);
+      await page.waitForSelector('.claim-feed, .empty-state');
+      check(`citizen claims ${view}: one entry per report of the API`, (await page.locator('.claim-entry').count()) === mineRef.length, `${mineRef.length}`);
+      if (mineRef.length) {
+        await page.locator('.claim-progress summary').first().click();
+        check(`citizen claims ${view}: status timeline`, (await page.locator('.claim-progress[open] .timeline-item').count()) >= 2);
+      }
+      await noScroll('claims'); await shot('claims');
+    }, { geolocation: GEO, replies: { '^/media/image$': () => ({ media_uri: '/media/files/ui-check.png', storage_key: 'ui-check' }), '^/platform/complaints$': e => ({ id: 'x', status: 'open', ...JSON.parse(e.body) }) } });
+  }
 }

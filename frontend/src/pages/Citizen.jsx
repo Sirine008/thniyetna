@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ArrowDownUp, ArrowRight, Bookmark, CircleAlert, CircleCheck, MousePointerClick, RefreshCw, Route, TriangleAlert } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 import LivePill from '../components/LivePill';
 import MapCanvas from '../components/MapCanvas';
@@ -7,6 +8,7 @@ import { api, openRealtime } from '../lib/api';
 import { BIZERTE, EMPTY_MAP } from '../lib/constants';
 import { routeState } from '../lib/routeState';
 import { clickTarget, readTripQuery, swapTrip, tripError, tripQuery } from '../lib/trip';
+import { Button, MapLegend, Notice } from '../ui';
 
 // shortcuts: they fill « Arrivée »
 const QUICK = [
@@ -26,10 +28,10 @@ const AUTO_CHECK_MS = 300;
 const nearLabel = place => place ? `Près de ${place.name}` : 'Point choisi sur la carte';
 const nearDetail = place => place ? [place.category, place.locality, place.distance_m != null && `à ${place.distance_m} m`].filter(Boolean).join(' · ') : 'Aucun lieu nommé à proximité';
 const posKey = p => p ? `${p.pos[0].toFixed(6)},${p.pos[1].toFixed(6)}` : '';
-// route fitted between the fields (over the map on desktop, above it on mobile) and the result card
-const routePadding = () => (window.matchMedia?.('(max-width:650px)').matches
+// route fitted in the visible map: next to the side panel on desktop; above the result card on mobile
+const routePadding = () => (window.matchMedia?.('(max-width:900px)').matches
   ? { paddingTopLeft: [30, 40], paddingBottomRight: [30, 260] }
-  : { paddingTopLeft: [40, 200], paddingBottomRight: [40, 400] });
+  : { padding: [48, 48] });
 
 export default function Citizen() {
   const [data, setData] = useState(EMPTY_MAP);
@@ -171,39 +173,47 @@ export default function Citizen() {
     onClear={() => { setPoint(name, null); setActive(name); }} active={active === name} {...extra}/>;
 
   return <div className={`citizen-nav${active ? ' picking' : ''}`}>
+    <a className="skip-link" href="#trajet">Aller au formulaire d’itinéraire</a>
     <MapCanvas data={data} userPosition={from?.pos} destination={to?.pos} selectedRoute={normal} alternative={safe} dangerRoute={state?.kind === 'warning'}
       focus={plan ? undefined : focus} onMapClick={onMapClick} onMarkerDrag={onMarkerDrag} centerOnStart={false} fitPadding={routePadding()}
       startIcon="A" destinationIcon="B" startLabel={from ? `Départ · ${from.label}` : 'Départ'} destinationLabel={to ? `Arrivée · ${to.label}` : 'Arrivée'}
       className="citizen-nav-map"/>
-    <div className="citizen-nav-top">
-      <div className="nav-brand"><b>THNIYETNA</b><LivePill status={live}/></div>
+    <div className="citizen-nav-top" id="trajet">
+      <div className="nav-brand"><span className="wordmark">THNIYETNA</span><LivePill status={live}/></div>
       <div className="trip-box">
         {field('from', { leading: START_OPTIONS, placeholder: locating ? 'Localisation…' : 'Lieu, « Ma position » ou la carte' })}
-        <button type="button" className="swap-btn" onClick={swap} disabled={!from && !to} aria-label="Inverser départ et arrivée" title="Inverser départ et arrivée">⇅</button>
+        <button type="button" className="swap-btn" onClick={swap} disabled={!from && !to} aria-label="Inverser départ et arrivée" title="Inverser départ et arrivée"><ArrowDownUp aria-hidden="true"/></button>
         {field('to', { placeholder: 'Où allez-vous ?' })}
       </div>
-      {active && <div className="pick-hint" role="status">Touchez la carte pour choisir : {FIELDS[active]} <button type="button" onClick={() => setActive(null)}>Annuler</button></div>}
+      {active && <div className="pick-hint" role="status"><MousePointerClick aria-hidden="true"/>Touchez la carte pour choisir : {FIELDS[active]} <button type="button" onClick={() => setActive(null)}>Annuler</button></div>}
     </div>
-    {notice && <div className="realtime-toast" onClick={() => setNotice('')}><i/> {notice}</div>}
-    {!to && <div className="nav-welcome"><span>Carte des incidents · Bizerte</span><h1>Voyagez avec une route vérifiée.</h1><p>Choisissez un départ et une arrivée : recherchez un lieu, utilisez « Ma position » ou touchez la carte (les repères A et B se déplacent). THNIYETNA compare le trajet rapide aux alternatives OSRM et tient compte des événements routiers enregistrés.</p><div className="quick-destinations" aria-label="Raccourcis d’arrivée">{QUICK.map((q, i) => <button key={i} onClick={() => choose('to', { name: q[0], lat: q[1], lon: q[2], key: 'quick', category: 'Raccourci' })}>{q[0]}</button>)}</div></div>}
-    {to && !plan && <div className="citizen-route-sheet pre-analysis"><div className="sheet-handle"/>
+    {notice && <div className="citizen-notice"><Notice tone="info" title={notice} action={<Button variant="ghost" size="sm" onClick={() => setNotice('')}>Fermer</Button>}/></div>}
+    {!to && <section className="nav-welcome" aria-labelledby="welcome-title">
+      <p className="t-xs t-muted">Carte des incidents · Bizerte</p>
+      <h1 id="welcome-title">Vérifier un itinéraire</h1>
+      <p className="t-sm t-muted">Choisissez un départ et une arrivée : recherchez un lieu, utilisez « Ma position » ou touchez la carte (les repères A et B se déplacent). L’itinéraire le plus rapide est comparé aux alternatives OSRM en tenant compte des incidents enregistrés.</p>
+      <h2 className="t-sm">Raccourcis d’arrivée</h2>
+      <div className="quick-destinations" aria-label="Raccourcis d’arrivée">{QUICK.map((q, i) => <button type="button" className="btn btn-secondary" key={i} onClick={() => choose('to', { name: q[0], lat: q[1], lon: q[2], key: 'quick', category: 'Raccourci' })}><Bookmark aria-hidden="true"/>{q[0]}</button>)}</div>
+    </section>}
+    {to && !plan && <section className="citizen-route-sheet pre-analysis" aria-label="Trajet à vérifier">
       <div className="trip-summary">
         <div><i className="badge-a">A</i><span><b>{from ? from.label : 'Départ à choisir'}</b>{from?.detail && <em>{from.detail}</em>}</span></div>
         <div><i className="badge-b">B</i><span><b>{to.label}</b>{to.detail && <em>{to.detail}</em>}</span></div>
       </div>
       {problem
-        ? <div className="route-alert route-error" role="alert"><span>!</span><div><b>{problem}</b><small>{error && error.startsWith('Le départ') ? 'Choisissez deux points différents.' : 'Choisissez un point dans le gouvernorat de Bizerte.'}</small></div></div>
+        ? <div className="route-alert route-error" role="alert"><CircleAlert aria-hidden="true"/><div><b>{problem}</b><small>{error && error.startsWith('Le départ') ? 'Choisissez deux points différents.' : 'Choisissez un point dans le gouvernorat de Bizerte.'}</small></div></div>
         : <p className="analysis-copy">{from ? (loading ? 'Analyse du trajet en cours…' : 'L’analyse utilise les incidents réellement enregistrés dans la plateforme.') : 'Indiquez le départ : tapez un lieu, choisissez « Ma position » ou touchez la carte.'}</p>}
-      <button className="analyze-route-btn" onClick={analyze} disabled={loading || !ready}>{loading ? <>Analyse du trajet…</> : <>Vérifier le trajet <span>→</span></>}</button></div>}
-    {plan && state && <div className={`citizen-route-sheet route-state-${state.kind}`}><div className="sheet-handle"/>
-      <div className="route-summary"><div><small>{from.label} → arrivée</small><b>{to.label}</b></div><strong>{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>
-      {state.kind === 'reroute' && <div className="route-alert"><span>!</span><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)} % · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div>}
-      <div className={`route-verdict ${state.tone}`} role={state.kind === 'safe' ? undefined : 'alert'}><span>{state.kind === 'safe' ? '✓' : state.kind === 'reroute' ? '↪' : '!'}</span><div><b>{state.title}</b><small>{state.detail}</small></div></div>
+      <Button variant="primary" size="lg" block className="analyze-route-btn" icon={ArrowRight} loading={loading} onClick={analyze} disabled={loading || !ready}>{loading ? 'Analyse du trajet…' : 'Vérifier le trajet'}</Button>
+    </section>}
+    {plan && state && <section className={`citizen-route-sheet route-state-${state.kind}`} aria-label="Résultat de l’analyse">
+      <div className="route-summary"><div><small>{from.label} → arrivée</small><b>{to.label}</b></div><strong className="t-num">{Math.round((plan.duration_s || 0) / 60)} <small>min</small></strong></div>
+      {state.kind === 'reroute' && <div className="route-alert"><TriangleAlert aria-hidden="true"/><div><b>Trajet initial impacté</b><small>Risque {Math.round((plan.fastest_risk || 0) * 100)} % · {plan.hazards_on_initial ? `${plan.hazards_on_initial} danger(s)` : 'segments à risque élevé (M2)'}</small></div></div>}
+      <div className={`route-verdict ${state.tone}`} role={state.kind === 'safe' ? undefined : 'alert'}>{state.kind === 'safe' ? <CircleCheck aria-hidden="true"/> : state.kind === 'reroute' ? <Route aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}<div><b>{state.title}</b><small>{state.detail}</small></div></div>
       {(state.hazards.length > 0 || state.note) && <div className={`route-hazards ${state.tone}`}>{state.hazards.length > 0 && <><small>{state.hazardsTitle}</small><ul>{state.hazards.map((h, i) => <li key={i}>{h}</li>)}</ul></>}{state.note && <p>{state.note}</p>}</div>}
-      {state.kind === 'reroute' && <div className="route-legend"><i className="red"/> Trajet initial <i className="green"/> Alternative OSRM</div>}
-      {state.kind === 'warning' && <div className="route-legend"><i className="red"/> Seul trajet disponible · roulez prudemment</div>}
-      <button className="secondary-route-btn" onClick={analyze}>Recalculer</button></div>}
-    {/* « Signaler » is in the bottom nav (the floating button covered the welcome / route cards) */}
+      {state.kind === 'reroute' && <MapLegend show={['route']} label="Légende de l’itinéraire"/>}
+      {state.kind === 'warning' && <p className="t-sm t-muted">Seul trajet disponible : roulez prudemment.</p>}
+      <Button variant="ghost" icon={RefreshCw} className="secondary-route-btn" onClick={analyze}>Recalculer</Button>
+    </section>}
     <BottomNav kind="citizen"/>
   </div>;
 }

@@ -12,13 +12,13 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Ministry from './pages/Ministry';
 import Report from './pages/Report';
-import './styles/app.css';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/map.css';
 import './styles/layout.css';
 import './styles/sheet.css';
+import './styles/citizen.css';
 import { ToastProvider } from './ui';
 
 const guard = (roles, element) => <ProtectedRoute roles={roles}>{element}</ProtectedRoute>;
