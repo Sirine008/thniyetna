@@ -76,3 +76,43 @@
 .bottom-nav a.active { color: var(--c-primary) !important; }
 .bottom-nav a.active::before { content: ""; position: absolute; inset-block-start: 0; inset-inline: 25%; border-block-start: 3px solid var(--c-primary); }
 .bottom-nav a:focus-visible { outline-offset: -3px; }
+
+/* ---------- mobile shell content (citizen, driver) ---------- */
+.m-shell { min-block-size: 100dvh; padding-block-end: calc(var(--bottomnav-h) + env(safe-area-inset-bottom)); background: var(--c-bg); }
+.m-header { position: sticky; inset-block-start: 0; z-index: var(--z-sticky); display: flex; align-items: center; gap: var(--sp-3); min-block-size: var(--topbar-h); padding: 0 var(--sp-4); background: var(--c-surface); border-block-end: var(--border); }
+.m-header > :last-child { margin-inline-start: auto; }
+.m-content { max-inline-size: 720px; margin: 0 auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.live-state { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-gray-700); white-space: nowrap; padding: 2px var(--sp-2); border: var(--border); border-radius: var(--radius-sm); background: var(--c-surface); }
+.live-state i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c-gray-400); }
+.live-state.is-live i { background: var(--c-green-solid); }
+
+/* driver */
+.drive-bus { display: flex; flex-direction: column; line-height: 1.2; min-inline-size: 0; }
+.drive-bus b { font-size: var(--fs-sm); }
+.drive-line h1 { font-size: var(--fs-xl); line-height: var(--lh-xl); }
+.drive-trip { font-size: var(--fs-lg); font-weight: var(--fw-bold); margin-block-start: var(--sp-1); }
+.drive-map { position: relative; block-size: min(48vh, 420px); border: var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.drive-map .map-shell, .drive-map-canvas { block-size: 100% !important; }
+.drive-map .leaflet-host { min-block-size: 0; }
+.drive-banner { display: grid; grid-template-columns: 32px 1fr; gap: var(--sp-2) var(--sp-3); padding: var(--sp-4); border: 1px solid; border-inline-start-width: 6px; border-radius: var(--radius-md); background: var(--c-surface); }
+.drive-banner > svg { inline-size: 28px; block-size: 28px; }
+.drive-banner h2 { font-size: var(--fs-xl); line-height: var(--lh-xl); }
+.drive-banner-body p { margin-block-start: var(--sp-1); }
+.drive-banner.is-safe { border-color: var(--c-green-line); border-inline-start-color: var(--c-green-solid); background: var(--c-green-bg); }
+.drive-banner.is-safe > svg, .drive-banner.is-safe h2 { color: var(--c-green); }
+.drive-banner.is-reroute { border-color: var(--c-orange-line); border-inline-start-color: var(--c-orange-solid); background: var(--c-orange-bg); }
+.drive-banner.is-reroute > svg, .drive-banner.is-reroute h2 { color: var(--c-orange); }
+.drive-banner.is-warning { border-color: var(--c-red-line); border-inline-start-color: var(--c-red-solid); background: var(--c-red-bg); }
+.drive-banner.is-warning > svg, .drive-banner.is-warning h2 { color: var(--c-red); }
+.drive-hazards { grid-column: 1 / -1; border-block-start: 1px solid rgba(20, 26, 33, .12); padding-block-start: var(--sp-3); }
+.drive-hazards h3 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .04em; color: var(--c-gray-700); }
+.drive-hazards ul { margin: var(--sp-2) 0 0; padding-inline-start: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-lg); line-height: var(--lh-lg); }
+@media (max-width: 400px) { .m-header .wordmark { display: none; } }
+
+/* alert feed (driver) */
+.alert-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.alert-entry { background: var(--c-surface); border: var(--border); border-radius: var(--radius-md); padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+.alert-entry h2 { font-size: var(--fs-lg); line-height: var(--lh-lg); }
+.alert-entry.is-superseded { background: var(--c-gray-25); }
+.alert-entry.is-superseded h2 { color: var(--c-gray-600); }
+.alert-hazards-list { margin: 0; padding-inline-start: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-1); }

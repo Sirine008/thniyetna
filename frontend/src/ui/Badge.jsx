@@ -46,7 +46,7 @@ export function AlertBadge({ topic, superseded }) {
   if (superseded) return <Badge tone="neutral" icon={Archive}>Remplacée</Badge>;
   if (topic === 'driver.reroute.alert') return <Badge tone="orange" icon={Route}>Déviation</Badge>;
   if (topic === 'driver.route.warning') return <Badge tone="red" icon={TriangleAlert}>Danger</Badge>;
-  return <Badge tone="neutral" icon={Bell}>{alertTopicLabel(topic)}</Badge>;
+  return <Badge tone="neutral" icon={Bell}>Information</Badge>;
 }
 export function ConfirmedBadge({ count }) {
   return count > 1 ? <Badge tone="neutral" icon={RefreshCw}>Confirmée {count}×</Badge> : null;

@@ -60,7 +60,7 @@ export default function DesignSystem() {
       <div className="row">{['low', 'medium', 'high', 'critical'].map(l => <RiskBadge key={l} level={l}/>)}</div>
       <div className="row">{['P1', 'P2', 'P3', 'P4'].map(p => <PriorityBadge key={p} priority={p}/>)}</div>
       <div className="row">{Object.keys(REPORT_STATES).map(s => <ReportStateBadge key={s} status={s}/>)}</div>
-      <div className="row"><EventStateBadge validated={false}/><EventStateBadge validated/><AlertBadge topic="driver.reroute.alert"/><AlertBadge topic="driver.route.warning"/><AlertBadge superseded/><ConfirmedBadge count={3}/><DemoBadge/><Badge>Neutre</Badge></div>
+      <div className="row"><EventStateBadge validated={false}/><EventStateBadge validated/><AlertBadge topic="driver.reroute.alert"/><AlertBadge topic="driver.route.warning"/><AlertBadge superseded/><AlertBadge topic="route.assignment"/><ConfirmedBadge count={3}/><DemoBadge/><Badge>Neutre</Badge></div>
     </div>)}
 
     {section('Indicateurs (KPI)', <><div className="grid-kpi"><KpiTile label="Libellé d’un compteur" value="—" to="/design"/><KpiTile label="Sans lien" value="—"/></div>

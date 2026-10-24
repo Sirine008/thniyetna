@@ -314,4 +314,35 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       check(`transport assignments ${view}: same assignment request`, asg && asg.body === JSON.stringify({ route_code: firstRoute, vehicle_code: firstBus, driver_username: firstDriver }), asg?.body);
     }, { replies: { '^/platform/vehicles$': e => ({ ...JSON.parse(e.body), active: true }), '^/routing/official-routes$': () => ({ id: 'x', route_code: 'UI-CHECK-L', name: 'Contrôle UI' }), '^/routing/assignments$': () => ({ status: 'assigned', id: 'x' }) } });
   }
+
+  // ------------------------------------------------------------ 6. driver (mobile first)
+  {
+    const mine = await apiAs('driver', '/routing/driver/me');
+    const alertsRef = await apiAs('driver', '/platform/alerts');
+    const dest = (() => { const c = mine[0]?.geometry?.coordinates; if (!c?.length) return null; const line = Array.isArray(c[0]?.[0]) ? c[c.length - 1] : c; const last = line[line.length - 1]; return [last[1], last[0]]; })();
+    const GEO = { latitude: 37.2744, longitude: 9.8739 };
+    const body = dest && { vehicle_id: mine[0].vehicle_code, current_lat: GEO.latitude, current_lon: GEO.longitude, destination_lat: dest[0], destination_lon: dest[1], alternatives: 3 };
+    const expected = body && await (await fetch(`${BASE}/api/routing/route`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    const rs = await lib('routeState');
+    await scenario('driver', 'driver', async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/driver`);
+      await page.waitForSelector('.drive-banner', { timeout: 45000 });
+      const nb = calls.filter(c => c.path === '/routing/driver/next-best');
+      check(`driver ${view}: same next-best request as before`, nb.length === 1 && nb[0].body === JSON.stringify(body), nb[0]?.body);
+      const kind = rs.routeState(expected).kind;
+      check(`driver ${view}: banner state matches the route decision (${kind})`, (await page.locator(`.drive-banner.is-${kind}`).count()) === 1);
+      check(`driver ${view}: every hazard listed`, (await page.locator('.drive-hazards li').count()) === (expected.hazards?.length || 0));
+      check(`driver ${view}: line name shown`, (await page.locator('.drive-line h1').textContent()) === mine[0].name);
+      await noScroll('trip'); await shot('trip');
+      await page.getByRole('button', { name: 'Vérifier et recalculer' }).click();
+      await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
+      check(`driver ${view}: recalculate sends the same request again`, calls.filter(c => c.path === '/routing/driver/next-best').length === 2);
+      await page.goto(`${BASE}/driver/alerts`);
+      await page.waitForSelector('.alert-feed, .empty-state');
+      check(`driver alerts ${view}: one entry per alert of the API`, (await page.locator('.alert-entry').count()) === alertsRef.length, `${alertsRef.length}`);
+      check(`driver alerts ${view}: superseded alerts marked`, (await page.locator('.alert-entry.is-superseded').count()) === alertsRef.filter(a => a.payload?.superseded).length);
+      check(`driver alerts ${view}: « Confirmée n× » shown`, (await page.locator('.alert-entry .badge', { hasText: 'Confirmée' }).count()) === alertsRef.filter(a => a.payload?.confirmations > 1).length);
+      await noScroll('alerts'); await shot('alerts');
+    }, { geolocation: GEO });
+  }
 }
