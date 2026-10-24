@@ -1,5 +1,5 @@
 // Scenarios of check-ui.mjs, one group per redesigned screen.
-export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs }) {
+export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs, SHEET, OUT_DIR, fs }) {
   // ------------------------------------------------------------ design system reference
   await scenario('design', 'equipment', async (page, { view, shot, noScroll }) => {
     await page.goto(`${BASE}/design`);
@@ -202,4 +202,48 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     await page.waitForSelector('.empty-state, .table');
     await noScroll('inspections'); await shot('inspections');
   }, { replies: { 'status$': e => ({ id: e.path.split('/')[3], status: JSON.parse(e.body).status }), 'validate$': () => ({ status: 'validated' }) } });
+
+  // ------------------------------------------------------------ 4. intervention sheet (recorded real response replayed)
+  await scenario('sheet', 'equipment', async (page, { view, shot, calls, noScroll }) => {
+    const code = SHEET?.segment_code;
+    await page.goto(`${BASE}/ministry/equipment?vue=priorites&q=${encodeURIComponent(code)}`);
+    await page.waitForSelector('.table tbody tr');
+    const opener = page.getByRole('button', { name: /Fiche d’intervention/ }).first();
+    await opener.click();
+    await page.waitForSelector('.generating');
+    check(`sheet ${view}: generating state with elapsed time while the sheet is produced`, /s écoulées/.test(await page.locator('.generating').textContent()));
+    await shot('generating');
+    await page.waitForSelector('.sheet-section', { timeout: 20000 });
+    const post = calls.find(c => c.path.startsWith('/assistant/intervention/'));
+    check(`sheet ${view}: same request (POST /assistant/intervention/{code})`, post && post.method === 'POST' && post.path === `/assistant/intervention/${code}`, post?.path);
+    check(`sheet ${view}: every section of the response is shown`, (await page.locator('.sheet-section').count()) === SHEET.body.sections.length + (SHEET.body.sources.length ? 1 : 0));
+    const text = await page.locator('.sheet-page').textContent();
+    check(`sheet ${view}: French labels, no raw class or status`, !/alligator_crack|road_damage|statut open|\bprimary\b/.test(text) && text.includes('Faïençage'));
+    check(`sheet ${view}: Tunis time (17:44 UTC shown as 18:44)`, text.includes('23 oct. 2026, 18:44'));
+    check(`sheet ${view}: rounded values (score 0,42, severity 73 %)`, text.includes('0,42') && /73\s%/.test(text));
+    check(`sheet ${view}: uncited advice is flagged`, (await page.locator('.uncited').count()) === SHEET.body.sections.filter(s => s.uncited).length);
+    check(`sheet ${view}: no demo banner for real data`, (await page.locator('.sheet-page .demo-banner').count()) === 0);
+    await noScroll('sheet');
+    await shot('sheet');
+    await page.emulateMedia({ media: 'print' });
+    check(`sheet ${view}: print shows only the sheet`, !(await page.locator('#root').isVisible()) && await page.locator('.sheet-page').isVisible() && !(await page.getByRole('button', { name: 'Imprimer' }).isVisible()));
+    if (view === 'desktop') {
+      await page.screenshot({ path: `${OUT_DIR}/sheet-print-desktop.png`, fullPage: true });
+      const pdf = await page.pdf({ format: 'A4', printBackground: false, preferCSSPageSize: true });
+      fs.writeFileSync(`${OUT_DIR}/sheet-print.pdf.bin`, pdf);
+      check('sheet desktop: A4 PDF generated from the print stylesheet', pdf.length > 10000, `${Math.round(pdf.length / 1024)} KB`);
+    }
+    await page.emulateMedia({ media: 'screen' });
+    await page.keyboard.press('Escape');
+    check(`sheet ${view}: Escape closes the sheet`, (await page.locator('.sheet-wrap').count()) === 0);
+
+    // demo data: banner
+    const demoBody = JSON.parse(JSON.stringify(SHEET.body));
+    demoBody.facts.events[0].demo = true;
+    await page.route('**/api/assistant/intervention/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(demoBody) }));
+    await opener.click();
+    await page.waitForSelector('.sheet-section');
+    check(`sheet ${view}: demo banner when a row is demo data`, (await page.locator('.sheet-page .demo-banner').count()) === 1);
+    await page.keyboard.press('Escape');
+  });
 }

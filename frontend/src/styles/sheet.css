@@ -1,0 +1,70 @@
+/* Generated documents: citations, sources, generating state (assistant + intervention sheet), A4 sheet + print. */
+.cited-text { white-space: pre-wrap; line-height: var(--lh-lg); }
+.citation-link { all: unset; cursor: pointer; color: var(--c-primary); font-weight: var(--fw-bold); text-decoration: underline; text-underline-offset: 2px; padding: 0 1px; }
+.citation-link:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 1px; }
+.sources { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.source-item { border: var(--border); border-radius: var(--radius-sm); padding: var(--sp-3); background: var(--c-surface); transition: border-color .2s, background-color .2s; }
+.source-item.is-cited, .source-item:focus { border-color: var(--c-primary); background: var(--c-primary-soft); outline: none; }
+.source-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.source-head svg { inline-size: 16px; block-size: 16px; color: var(--c-gray-500); }
+.source-number { font-weight: var(--fw-bold); color: var(--c-primary); font-variant-numeric: tabular-nums; }
+.source-item blockquote { margin: var(--sp-2) 0 0; padding-inline-start: var(--sp-3); border-inline-start: 3px solid var(--c-border-strong); color: var(--c-gray-700); font-size: var(--fs-sm); line-height: var(--lh-sm); white-space: pre-wrap; }
+.generated-notice { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-sm); color: var(--c-gray-700); }
+.generated-notice svg { inline-size: 16px; block-size: 16px; flex: none; margin-block-start: 1px; color: var(--c-primary); }
+.uncited { display: flex; gap: var(--sp-2); align-items: flex-start; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--c-orange-line); background: var(--c-orange-bg); color: var(--c-orange); border-radius: var(--radius-sm); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.uncited svg { inline-size: 16px; block-size: 16px; flex: none; margin-block-start: 1px; }
+.generating { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-4); border: var(--border); border-radius: var(--radius-sm); background: var(--c-gray-25); color: var(--c-primary); }
+.generating p { color: var(--c-text); }
+.indeterminate { margin-block-start: var(--sp-2); inline-size: 240px; max-inline-size: 100%; block-size: 4px; background: var(--c-gray-100); border-radius: 2px; overflow: hidden; }
+.indeterminate span { display: block; inline-size: 35%; block-size: 100%; background: var(--c-primary); animation: indeterminate 1.4s ease-in-out infinite; }
+@keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .indeterminate span { animation: none; inline-size: 100%; opacity: .4; } }
+
+/* ---------- intervention sheet (screen) ---------- */
+.sheet-wrap { position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(20, 26, 33, .42); overflow-y: auto; padding: var(--sp-6) var(--sp-4); }
+.sheet-page { inline-size: min(210mm, 100%); margin: 0 auto; background: var(--c-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-modal); padding: var(--sp-8); display: flex; flex-direction: column; gap: var(--sp-6); }
+.sheet-page:focus { outline: none; }
+.sheet-head { display: flex; justify-content: space-between; gap: var(--sp-4); align-items: flex-start; flex-wrap: wrap; padding-block-end: var(--sp-4); border-block-end: 2px solid var(--c-gray-900); }
+.sheet-kicker { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--c-text-muted); font-weight: var(--fw-bold); }
+.sheet-head h2 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); margin-block: var(--sp-1); }
+.sheet-section { display: flex; flex-direction: column; gap: var(--sp-3); break-inside: avoid-page; }
+.sheet-section h3 { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-lg); padding-block-end: var(--sp-2); border-block-end: var(--border); }
+.sheet-origin { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-text-muted); border: var(--border-strong); border-radius: var(--radius-sm); padding: 0 var(--sp-2); white-space: nowrap; }
+.sheet-origin.is-assistant { color: var(--c-primary); border-color: var(--c-primary-line); }
+.sheet-text { white-space: pre-wrap; }
+.sheet-list { margin: 0; padding-inline-start: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-1); }
+.sheet-table caption { text-align: start; font-weight: var(--fw-bold); font-size: var(--fs-sm); padding-block: var(--sp-2) var(--sp-1); }
+.sheet-table th { position: static; }
+.sheet-meta { font-size: var(--fs-xs); color: var(--c-text-subtle); border-block-start: var(--border); padding-block-start: var(--sp-3); }
+@media (max-width: 720px) {
+  .sheet-wrap { padding: 0; }
+  .sheet-page { border-radius: 0; padding: var(--sp-4); min-block-size: 100%; }
+  .sheet-head .row { inline-size: 100%; }
+  .sheet-table thead { display: none; }
+  .sheet-table, .sheet-table tbody, .sheet-table tr, .sheet-table td { display: block; inline-size: 100%; }
+  .sheet-table tr { padding: var(--sp-2) 0; border-block-end: var(--border); }
+  .sheet-table caption { display: block; inline-size: 100%; }
+  .sheet-table td { border: 0; padding: 2px 0; text-align: start !important; display: grid; grid-template-columns: minmax(96px, 38%) 1fr; gap: var(--sp-3); }
+  .sheet-table td::before { content: attr(data-label); font-size: var(--fs-xs); color: var(--c-text-subtle); font-weight: var(--fw-medium); padding-block-start: 2px; }
+}
+
+/* ---------- print: A4, only the sheet ---------- */
+@page { size: A4 portrait; margin: 15mm 14mm 16mm; }
+@media print {
+  body.sheet-open #root, body.sheet-open .toast-region, .no-print { display: none !important; }
+  body { background: #fff !important; }
+  .sheet-wrap { position: static; background: none; padding: 0; overflow: visible; }
+  .sheet-page { inline-size: auto; box-shadow: none; border-radius: 0; padding: 0; gap: 14pt; }
+  .sheet-page, .sheet-page * { color: #000 !important; }
+  .sheet-head { border-block-end-color: #000; }
+  .sheet-page { font-size: 10pt; line-height: 1.4; }
+  .sheet-head h2 { font-size: 16pt; }
+  .sheet-section h3 { font-size: 12pt; }
+  .badge, .sheet-origin, .demo-banner { background: none !important; border-color: #000 !important; }
+  .notice, .uncited, .source-item { background: none !important; border-color: #555 !important; }
+  .table th { background: none !important; }
+  .table th, .table td { padding: 3pt 5pt; border-block-end: 0.5pt solid #999; }
+  .citation-link { color: #000 !important; text-decoration: none; }
+  .sheet-table thead { display: table-header-group; }
+  .sheet-section, .source-item, tr { break-inside: avoid; }
+}
