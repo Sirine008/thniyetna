@@ -45,45 +45,58 @@
 .demo-badge{display:inline-block;border-radius:3px;padding:3px 7px;margin:0 0 4px;font-size:10px;font-weight:800;letter-spacing:.02em;background:#fff3c4;color:#7a5200;border:1px dashed #c99a1a;white-space:nowrap}
 .alert-superseded{display:inline-block;margin:2px 0;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;background:#eef1f0;color:#657474}.alert-hazards{margin:4px 0 2px;padding-left:16px;font-size:11px;line-height:1.5}
 
-/* Citizen destination search: start + destination card, autocomplete, map picking */
-.trip-box{background:#fff;box-shadow:0 15px 40px #092c3930;border-radius:18px;padding:6px 10px;pointer-events:auto}
-.trip-row-start,.trip-row-dest{display:flex;align-items:center;gap:9px;min-height:44px}
-.trip-row-start{border-bottom:1px solid #eef2f1}
-.trip-row-start>div,.trip-row-dest>div{flex:1;min-width:0}
-.trip-box small{display:block;color:#8b999c;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
-.trip-row-start b{display:block;font-size:12px;color:#102b35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trip-row-start button{border:1px solid #dbe9e5;background:#f3faf8;color:#00745f;height:34px;border-radius:11px;padding:0 9px;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer}
-.trip-row-start button.on{background:#082f3c;border-color:#082f3c;color:#fff}
-.trip-row-start button:disabled{opacity:.6}
-.dest-dot{width:11px;height:11px;flex:none;background:#092f3d;border-radius:3px;transform:rotate(45deg)}
-.trip-box .start-dot{flex:none}
-.place-search{display:flex;align-items:center;gap:6px}
-.place-search input{border:0;outline:0;flex:1;min-width:0;font-size:14px;font-weight:800;color:#102b35;padding:3px 0;background:transparent}
-.place-clear{border:0;background:#eef2f1;color:#50636a;width:28px;height:28px;flex:none;border-radius:50%;font-size:17px;line-height:1;cursor:pointer}
+/* Citizen trip fields « Départ » (A) / « Arrivée » (B): same autocomplete, swap, map picking */
 .citizen-nav-top{display:flex;flex-direction:column}
-.citizen-nav-top .search-results{position:absolute;top:100%;left:18px;right:18px;margin-top:-10px;max-height:min(52vh,420px);overflow-y:auto;z-index:700}
+.trip-box{position:relative;background:#fff;box-shadow:0 15px 40px #092c3930;border-radius:18px;padding:4px 52px 4px 8px;pointer-events:auto}
+.trip-box>.place-search+.swap-btn+.place-search{border-top:1px solid #eef2f1}
+.place-search{display:flex;align-items:center;gap:9px;min-height:52px;padding:2px 4px;border-radius:13px;position:static}
+.place-search.active{background:#eef8f5;box-shadow:inset 0 0 0 2px #00a88f55}
+.field-badge{width:26px;height:26px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#fff;background:#2775ff}
+.trip-box>.place-search:last-child .field-badge{background:#092f3d}
+.field-body{flex:1;min-width:0;display:block;cursor:text}
+.field-body small{display:block;color:#8b999c;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.place-search input{border:0;outline:0;width:100%;min-height:26px;font-size:14px;font-weight:800;color:#102b35;padding:2px 0;background:transparent;text-overflow:ellipsis}
+.place-clear{border:0;background:#eef2f1;color:#50636a;width:44px;height:44px;flex:none;border-radius:50%;font-size:20px;line-height:1;cursor:pointer}
+.swap-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:14px;border:1px solid #dbe9e5;background:#f3faf8;color:#00745f;font-size:20px;font-weight:900;cursor:pointer;z-index:2}
+.swap-btn:disabled{opacity:.4;cursor:default}
+.trip-box .search-results{position:absolute;top:100%;left:0;right:0;margin-top:6px;max-height:min(52vh,420px);overflow-y:auto;z-index:700}
 .search-results button{cursor:pointer;min-height:48px}
 .search-results button.active{background:#eaf7f3}
+.search-results button.leading b{color:#00745f}
 .search-results .place-icon{width:28px;flex:none;text-align:center;font-size:18px}
 .search-results button>div{min-width:0}
 .search-results b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .search-state{margin:0;padding:13px;font-size:10px;color:#72858a}
-.pick-hint{pointer-events:auto;align-self:center;margin-top:8px;background:#082f3cf0;color:#dffff7;border-radius:999px;padding:7px 8px 7px 14px;font-size:10px;font-weight:800;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow)}
-.pick-hint button{border:0;background:#ffffff22;color:#fff;border-radius:999px;padding:5px 10px;font-size:9px;font-weight:800;cursor:pointer}
+.pick-hint{pointer-events:auto;align-self:center;margin-top:8px;background:#082f3cf0;color:#dffff7;border-radius:999px;padding:4px 4px 4px 14px;font-size:10px;font-weight:800;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow)}
+.pick-hint button{border:0;background:#ffffff22;color:#fff;border-radius:999px;min-height:36px;padding:0 12px;font-size:10px;font-weight:800;cursor:pointer}
 .citizen-nav.picking .leaflet-container{cursor:crosshair}
-.dest-detail{display:block;font-style:normal;font-size:9px;color:#6e8185;margin-top:2px}
+.th-marker.user span,.th-marker.destination span{font-size:13px}
+.leaflet-marker-draggable{cursor:grab}
+.trip-summary{display:grid;gap:6px}
+.trip-summary>div{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.trip-summary i{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;color:#fff;font-style:normal;font-size:10px;font-weight:900}
+.trip-summary .badge-a{background:#2775ff}.trip-summary .badge-b{background:#092f3d}
+.trip-summary span{min-width:0}.trip-summary b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-summary em{display:block;font-style:normal;font-size:9px;color:#6e8185;margin-top:1px}
 .route-summary>div{min-width:0}
-.route-summary b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.route-error{margin-bottom:10px}.route-error b{font-size:10px}
-.analyze-route-btn:disabled{opacity:.55;cursor:not-allowed}
-.quick-destinations button{cursor:pointer}
+.route-summary b,.route-summary small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route-error{margin:10px 0}.route-error b{font-size:10px}
+.analyze-route-btn{min-height:44px}.analyze-route-btn:disabled{opacity:.55;cursor:not-allowed}
+.secondary-route-btn{min-height:36px}
+.quick-destinations button{cursor:pointer;min-height:40px}
 @media(max-width:650px){
-  .citizen-nav-top{padding:12px}
-  .citizen-nav-top .search-results{left:12px;right:12px}
+  /* stacked fields on top, the map below them (not under them) */
+  .citizen-nav{display:flex;flex-direction:column;height:calc(100dvh - 74px - env(safe-area-inset-bottom))} /* above the bottom nav */
+  .citizen-nav-top{order:-1;position:relative;padding:10px 12px 8px;background:#eef3f1;box-shadow:0 6px 20px #092c3918;z-index:700}
+  .nav-brand{margin-bottom:8px}
+  .citizen-nav-map{flex:1;height:auto;min-height:0}
+  .citizen-nav-map .leaflet-host{height:100%;min-height:0}
   .place-search input{font-size:16px} /* >= 16px: iOS does not zoom on focus */
-  .nav-welcome{left:12px;right:12px;padding:16px}
+  .pick-hint{position:absolute;top:100%;margin-top:8px}
+  .nav-welcome{left:10px;right:10px;padding:14px;bottom:10px}
+  .nav-welcome h1{font-size:17px}
+  .citizen-route-sheet{left:10px;right:10px;bottom:10px;max-height:58%;overflow-y:auto}
 }
-@media(max-width:400px){.trip-row-start button span{display:none}.trip-row-start button{width:36px;padding:0}}
 
 /* Citizen route card: safe (green) / reroute (orange + green) / warning (red) */
 .route-verdict{display:flex;gap:10px;align-items:center;padding:10px 11px;border-radius:14px;margin-top:8px;border:1px solid}

@@ -99,9 +99,14 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
 
 ## M3 destination search (place index, since 2026-10-23)
-- Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`, `components/PlaceSearch.jsx`):
-  free destination = autocomplete search, a map click (nearest place name shown) or the 3 shortcut buttons; start =
-  « Ma position » (browser geolocation), « Carte » (next map click) or the Bizerte centre by default. M3 logic unchanged.
+- Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`): two identical fields « Départ » (A)
+  and « Arrivée » (B), one component (`components/PlaceSearch.jsx`, autocomplete FR + AR). « Départ » lists « Ma position »
+  then « Centre de Bizerte » first (no implicit start); the 3 shortcut buttons fill « Arrivée ». Map click = the active
+  (last focused) field, else « Départ » if empty, else « Arrivée »; A / B markers are draggable (nearest place renamed);
+  ⇅ swaps. Rules in `frontend/src/lib/trip.js` (tested by `npm test`): out-of-zone messages, « Le départ et l’arrivée
+  sont identiques » under 50 m, shareable URL `?from=lat,lon&to=lat,lon` (kept through the login redirect). The route
+  is checked automatically once both are set (button « Vérifier le trajet » re-runs it). M3 logic unchanged.
+- UI check: `docs/ui/check-citizen.mjs` (headless Edge, 28 checks, screenshots in `docs/ui/`, see its README).
 - Table `places` (Alembic `0007_places_index`, extension `pg_trgm`): name (name:fr preferred), name_ar, name_norm
   (normalised search key of every name variant), category, rank, locality (nearest town / village), point geom.
   Normalisation (`backend/routing/places_index.py`, shared by the API and the script): case, accents, punctuation,

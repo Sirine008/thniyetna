@@ -6,7 +6,8 @@ export default function ProtectedRoute({ roles, children }) {
   const location = useLocation();
   const session = getSession();
   if (!session?.access_token) {
-    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+    // keep the query string: a shared citizen route (?from=…&to=…) survives the login
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
   if (roles?.length && !roles.includes(session.role)) {
     return <Navigate to="/" replace />;
