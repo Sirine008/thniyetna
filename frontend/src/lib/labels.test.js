@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defectLabel, defectTitle, reportStateLabel, alertTopicLabel, roleLabel, roadClassLabel, riskLabel,
-  priorityLabel, factorName, factorPhrase, factorEffect, REPORT_TARGET_STATES, REPORT_STATES } from './labels.js';
+  priorityLabel, factorName, factorPhrase, factorEffect, REPORT_TARGET_STATES, REPORT_STATES, apiErrorMessage } from './labels.js';
 import { mainFactor } from './risk.js';
 import { hazardLabel } from './constants.js';
 
@@ -38,4 +38,13 @@ test('M2 factors as readable phrases with their direction', () => {
   const segment = { top_factors: [{ feature: 'gov:hist_acc_sum_90', contribution: -0.223 }, { feature: 'segment:road_class=motorway', contribution: 1.383 }, { feature: 'm1:road_condition', contribution: 0.2, value: 1 }] };
   assert.equal(mainFactor(segment), 'Autoroute — augmente le risque');
   assert.equal(mainFactor({ top_factors: '[]' }), '—');
+});
+
+test('known API errors in French, others unchanged', () => {
+  assert.equal(apiErrorMessage('Invalid username or password'), 'Identifiant ou mot de passe incorrect.');
+  assert.equal(apiErrorMessage('Username already exists'), 'Cet identifiant est déjà utilisé.');
+  assert.equal(apiErrorMessage('Request failed (502)'), 'La requête a échoué (erreur 502).');
+  assert.equal(apiErrorMessage('Failed to fetch'), 'Serveur injoignable. Vérifiez la connexion et réessayez.');
+  assert.equal(apiErrorMessage('Destination hors de la zone couverte (gouvernorat de Bizerte)'), 'Destination hors de la zone couverte (gouvernorat de Bizerte)');
+  assert.equal(apiErrorMessage(''), 'Une erreur est survenue.');
 });

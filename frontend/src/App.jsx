@@ -17,6 +17,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/map.css';
+import './styles/layout.css';
 import { ToastProvider } from './ui';
 
 const guard = (roles, element) => <ProtectedRoute roles={roles}>{element}</ProtectedRoute>;

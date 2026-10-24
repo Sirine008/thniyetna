@@ -92,3 +92,21 @@ export function factorName(factor) {
 }
 export const factorEffect = factor => (Number(factor?.contribution) > 0 ? 'augmente le risque' : Number(factor?.contribution) < 0 ? 'diminue le risque' : 'sans effet');
 export const factorPhrase = factor => `${factorName(factor)} — ${factorEffect(factor)}`;
+
+// Known API error messages (English in the backend) shown in French; anything else is shown as received.
+const API_ERRORS = [
+  [/^Invalid username or password$/i, 'Identifiant ou mot de passe incorrect.'],
+  [/^Username already exists$/i, 'Cet identifiant est déjà utilisé.'],
+  [/^Insufficient role$/i, 'Votre compte n’a pas accès à cette action.'],
+  [/^(Not authenticated|Could not validate credentials)$/i, 'Session expirée : reconnectez-vous.'],
+  [/^Failed to fetch$|NetworkError|Load failed/i, 'Serveur injoignable. Vérifiez la connexion et réessayez.'],
+  [/^Request failed \((\d+)\)$/, (m, code) => `La requête a échoué (erreur ${code}).`],
+];
+export function apiErrorMessage(message) {
+  const text = String(message || '').trim();
+  for (const [pattern, fr] of API_ERRORS) {
+    const m = text.match(pattern);
+    if (m) return typeof fr === 'function' ? fr(...m) : fr;
+  }
+  return text || 'Une erreur est survenue.';
+}

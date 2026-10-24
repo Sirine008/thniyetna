@@ -88,7 +88,7 @@ export async function focusVisible(page, label) {
 
 browser = await chromium.launch({ channel: 'msedge', headless: true });
 const groups = await import('./check-ui-scenarios.mjs');
-await groups.default({ scenario, check, focusVisible, BASE, USERS });
+await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) } });
 await browser.close();
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${failed.length ? ` — FAILED: ${failed.map(f => f.name).join(' | ')}` : ''}`);

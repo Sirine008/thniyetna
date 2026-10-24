@@ -1,0 +1,29 @@
+/* Page layouts: public / auth, supervisor shell (sidebar + top bar), mobile shell (bottom navigation). */
+
+/* ---------- public header ---------- */
+.public-header { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); block-size: var(--topbar-h); padding: 0 var(--sp-6); background: var(--c-surface); border-block-end: var(--border); }
+.public-main { max-inline-size: 1040px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); }
+@media (max-width: 720px) { .public-header { padding: 0 var(--sp-4); } .public-main { padding: var(--sp-6) var(--sp-4) var(--sp-8); } }
+
+/* role list (entry page) */
+.role-list { list-style: none; margin: var(--sp-6) 0 0; padding: 0; border: var(--border); border-radius: var(--radius-md); background: var(--c-surface); }
+.role-list li + li { border-block-start: var(--border); }
+.role-link { display: grid; grid-template-columns: 24px 1fr auto; gap: var(--sp-4); align-items: center; padding: var(--sp-4); color: var(--c-text); text-decoration: none; min-block-size: 72px; }
+.role-link:hover { background: var(--c-gray-25); color: var(--c-text); }
+.role-link:hover .role-go { text-decoration: underline; }
+.role-link > svg { inline-size: 20px; block-size: 20px; color: var(--c-gray-600); }
+.role-link h2 { font-size: var(--fs-lg); line-height: var(--lh-lg); }
+.role-link p { color: var(--c-text-muted); font-size: var(--fs-sm); }
+.role-go { color: var(--c-primary); font-weight: var(--fw-medium); display: inline-flex; align-items: center; gap: var(--sp-1); white-space: nowrap; }
+.role-go svg { inline-size: 16px; block-size: 16px; }
+@media (max-width: 560px) { .role-link { grid-template-columns: 20px 1fr; } .role-go { grid-column: 2; } }
+.public-foot { margin-block-start: var(--sp-6); color: var(--c-text-subtle); font-size: var(--fs-sm); }
+
+/* auth form */
+.auth-main { max-inline-size: 440px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); }
+.auth-form { display: flex; flex-direction: column; gap: var(--sp-4); margin-block-start: var(--sp-6); }
+.auth-form .btn-primary { margin-block-start: var(--sp-2); min-block-size: var(--tap); }
+.auth-switch { padding-block-start: var(--sp-4); margin-block-start: var(--sp-2); border-block-start: var(--border); }
+.back-link { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); text-decoration: none; }
+.back-link svg { inline-size: 16px; block-size: 16px; }
+@media (max-width: 720px) { .auth-main { padding: var(--sp-6) var(--sp-4) var(--sp-8); } }
