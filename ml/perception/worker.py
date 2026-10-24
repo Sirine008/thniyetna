@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -11,7 +12,8 @@ from sqlalchemy import create_engine, text
 from .config import settings
 from .detector import RoadDamageDetector
 from .gps import GpsSample, interpolate
-from .video import iter_sampled_frames
+from .video import iter_sampled_frames, video_info
+from .video_pipeline import FrameDetection, aggregate_tracks, geolocate, parse_gpx, per_class, video_start
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("thniyetna.m1")
@@ -104,9 +106,13 @@ def _upsert_observation(
     *, job: dict, defect_type: str, confidence: float, severity: float,
     captured_at: datetime, latitude: float | None, longitude: float | None,
     bbox: tuple[float,float,float,float], frame_index: int | None,
-    frame_time_s: float | None,
+    frame_time_s: float | None, media_uri: str | None = None, extra: dict | None = None,
 ) -> str | None:
-    """Persist one model observation and link it to a deduplicated RoadEvent."""
+    """Persist one model observation and link it to a deduplicated RoadEvent.
+    No position → observation only (no road event). `media_uri` overrides the job media (video evidence frame);
+    `extra` is merged into the event payload and the observation metadata (video context, demo tag)."""
+    media = media_uri or job.get("media_uri")
+    extra = extra or {}
     with engine.begin() as conn:
         event_id = None
         segment_id = None
@@ -159,6 +165,10 @@ def _upsert_observation(
                     "id": event_id, "sev": severity, "conf": confidence,
                     "captured": captured_at, "model": settings.model_name,
                 })
+                if extra.get("source_kind") == "video" and confidence >= float(conn.execute(
+                        text("SELECT COALESCE(confidence,0) FROM road_events WHERE id=:id"), {"id": event_id}).scalar() or 0):
+                    # the best video evidence becomes the event image
+                    conn.execute(text("UPDATE road_events SET media_uri=:m WHERE id=:id"), {"m": media, "id": event_id})
             else:
                 event_id = conn.execute(text("""
                   INSERT INTO road_events(
@@ -167,14 +177,15 @@ def _upsert_observation(
                   ) VALUES(
                     :segment,:typ,:source,:sev,:conf,
                     ST_SetSRID(ST_MakePoint(:lon,:lat),4326),:captured,:media,
-                    jsonb_build_object('model',CAST(:model AS text),'observation_count',1,'job_id',CAST(:job_id AS text)),
+                    jsonb_build_object('model',CAST(:model AS text),'observation_count',1,'job_id',CAST(:job_id AS text))
+                      || CAST(:extra AS jsonb),
                     'observed'
                   ) RETURNING id::text
                 """), {
                     "segment": segment_id, "typ": defect_type, "source": job["source"],
                     "sev": severity, "conf": confidence, "lon": longitude, "lat": latitude,
-                    "captured": captured_at, "media": job.get("media_uri"),
-                    "model": settings.model_name, "job_id": job["id"],
+                    "captured": captured_at, "media": media,
+                    "model": settings.model_name, "job_id": job["id"], "extra": json.dumps(extra),
                 }).scalar_one()
                 conn.execute(text("""
                   INSERT INTO notification_outbox(topic,payload)
@@ -195,16 +206,16 @@ def _upsert_observation(
             :event,:session,:source,:typ,:conf,:sev,
             CASE WHEN CAST(:lat AS double precision) IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(:lon,:lat),4326) END,
             :captured,:frame_index,:frame_time,CAST(:bbox AS jsonb),:media,:model,:version,
-            jsonb_build_object('job_id',CAST(:job_id AS text))
+            jsonb_build_object('job_id',CAST(:job_id AS text)) || CAST(:extra AS jsonb)
           )
         """), {
             "event": event_id, "session": job.get("session_id"), "source": job["source"],
             "typ": defect_type, "conf": confidence, "sev": severity,
             "lat": latitude, "lon": longitude, "captured": captured_at,
             "frame_index": frame_index, "frame_time": frame_time_s,
-            "bbox": json.dumps(list(map(float, bbox))), "media": job.get("media_uri"),
+            "bbox": json.dumps(list(map(float, bbox))), "media": media,
             "model": settings.model_name, "version": settings.weights.name,
-            "job_id": job["id"],
+            "job_id": job["id"], "extra": json.dumps(extra),
         })
         return event_id
 
@@ -235,49 +246,122 @@ def _process_image(job: dict, detector: RoadDamageDetector) -> dict:
     return {"detections": len(detections), "events": len(set(event_ids))}
 
 
-def _process_video(job: dict, detector: RoadDamageDetector) -> dict:
-    path = _media_path(job["storage_key"])
+DEMO_LABEL = "DÉMO — données fictives"
+
+
+def _save_evidence(image, detection: FrameDetection) -> str:
+    """Best frame of a tracked defect with its box and label drawn, saved under frames/ (public media URL)."""
+    import cv2
+
+    img = image.copy()
+    h, w = img.shape[:2]
+    x1, y1, x2, y2 = (int(round(v)) for v in detection.bbox_xyxy)
+    thick = max(2, w // 400)
+    red = (40, 40, 198)  # BGR
+    cv2.rectangle(img, (x1, y1), (x2, y2), red, thick)
+    label = f"{detection.defect_type} {detection.confidence:.0%}"
+    scale = max(0.5, w / 1600)
+    (tw, th), base = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, max(1, thick // 2))
+    ty = max(th + base + 4, y1)
+    cv2.rectangle(img, (x1, ty - th - base - 4), (x1 + tw + 8, ty), red, -1)
+    cv2.putText(img, label, (x1 + 4, ty - base - 2), cv2.FONT_HERSHEY_SIMPLEX, scale, (255, 255, 255), max(1, thick // 2), cv2.LINE_AA)
+    key = f"frames/{uuid.uuid4().hex}.jpg"
+    path = (settings.media_root / key).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(path), img, [cv2.IMWRITE_JPEG_QUALITY, 88]):
+        raise IOError(f"Cannot write evidence frame {path}")
+    return f"{settings.media_public_prefix}/{key}"
+
+
+def _video_gps(job: dict) -> tuple[list[GpsSample], datetime | None, str]:
+    """GPS track and absolute time of the first frame: GPX sent with the video (job options), else the
+    session's heartbeat points; ([], None, 'none') when no GPS is available (the video is then unlocated)."""
+    options = job.get("options") or {}
+    offset = float(options.get("gps_offset_s", settings.gps_offset_s) or 0)
+    if options.get("gpx"):
+        samples = parse_gpx(options["gpx"])
+        if samples:
+            return samples, video_start(samples, options.get("video_started_at"), offset), "gpx"
+        return [], None, "none"
     session_id = job.get("session_id")
-    if not session_id:
-        raise ValueError("Video job requires session_id")
-    gps = _gps_samples(session_id)
-    if not gps:
-        raise ValueError("No GPS samples found for video session")
-    start = _session_started_at(session_id)
+    if session_id:
+        samples = _gps_samples(session_id)
+        if samples:
+            explicit = options.get("video_started_at")
+            base = video_start(samples, explicit, 0) if explicit else _session_started_at(session_id)
+            return samples, base + timedelta(seconds=offset), "session"
+    return [], None, "none"
 
-    sampled = list(iter_sampled_frames(path, target_fps=settings.video_fps))
-    detections_total = 0
+
+def _process_video(job: dict, detector: RoadDamageDetector) -> dict:
+    """Sampled frames → ByteTrack → one defect per track (best frame as evidence) → nearest segment / road event.
+    Unlocated defects (no GPS) are kept as observations without a road event."""
+    t0 = time.monotonic()
+    path = _media_path(job["storage_key"])
+    options = job.get("options") or {}
+    demo = bool(options.get("demo"))
+    samples, start, gps_source = _video_gps(job)
+    info = video_info(path)
+    expected = max(1, int(info["duration_s"] * settings.video_fps) + 1)
+
+    tracker = detector.new_tracker(settings.tracker)
+    raw: list[FrameDetection] = []
+    best_image: dict = {}       # track id (or ("frame", index) for untracked boxes) -> image of the best frame
+    best_conf: dict = {}
+    frames = 0
+    for frame in iter_sampled_frames(path, target_fps=settings.video_fps):
+        frames += 1
+        for det, track_id in detector.detect_and_track(frame.image, tracker):
+            fd = FrameDetection(frame.frame_index, round(frame.time_s, 3), det.defect_type, det.confidence,
+                                det.bbox_xyxy, det.severity_proxy, track_id)
+            raw.append(fd)
+            key = track_id if track_id is not None else ("frame", frame.frame_index)
+            if det.confidence > best_conf.get(key, -1):
+                best_conf[key], best_image[key] = det.confidence, frame.image
+        if frames % 10 == 0:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE perception_jobs SET progress=:p,updated_at=now() WHERE id=:id"),
+                             {"p": min(0.95, frames / expected), "id": job["id"]})
+
+    defects = aggregate_tracks(raw)
+    records = geolocate(defects, samples, start, settings.gps_max_gap_s)
     event_ids: list[str] = []
-    total = max(1, len(sampled))
-
-    for offset in range(0, len(sampled), settings.batch_size):
-        batch = sampled[offset: offset + settings.batch_size]
-        predictions = detector.predict_batch([f.image for f in batch])
-        for frame, detections in zip(batch, predictions):
-            captured_at = start + timedelta(seconds=frame.time_s)
-            loc = interpolate(gps, captured_at)
-            lat, lon = loc if loc is not None else (None, None)
-            for d in detections:
-                detections_total += 1
-                event_id = _upsert_observation(
-                    job=job, defect_type=d.defect_type, confidence=d.confidence,
-                    severity=d.severity_proxy, captured_at=captured_at,
-                    latitude=lat, longitude=lon, bbox=d.bbox_xyxy,
-                    frame_index=frame.frame_index, frame_time_s=frame.time_s,
-                )
-                if event_id:
-                    event_ids.append(event_id)
-        progress = min(0.99, (offset + len(batch)) / total)
-        with engine.begin() as conn:
-            conn.execute(text("UPDATE perception_jobs SET progress=:p,updated_at=now() WHERE id=:id"), {
-                "p": progress, "id": job["id"],
-            })
+    located = 0
+    for rec in records:
+        d = rec.defect
+        key = d.best.track_id if d.best.track_id is not None else ("frame", d.best.frame_index)
+        evidence = _save_evidence(best_image[key], d.best)
+        extra = {"source_kind": "video", "video_media_uri": job.get("media_uri"), "track": d.key,
+                 "track_frames": d.frames, "track_first_s": d.first_s, "track_last_s": d.last_s,
+                 "frame_time_s": d.best.time_s, "session_id": job.get("session_id"), "located": rec.creates_road_event}
+        if demo:
+            extra.update({"demo": True, "demo_label": DEMO_LABEL})
+        event_id = _upsert_observation(
+            job=job, defect_type=d.defect_type, confidence=d.best.confidence, severity=d.best.severity,
+            captured_at=rec.captured_at, latitude=rec.latitude, longitude=rec.longitude, bbox=d.best.bbox_xyxy,
+            frame_index=d.best.frame_index, frame_time_s=d.best.time_s, media_uri=evidence, extra=extra,
+        )
+        located += rec.creates_road_event
+        if event_id:
+            event_ids.append(event_id)
 
     return {
-        "sampled_frames": len(sampled),
-        "detections": detections_total,
+        "video_duration_s": round(info["duration_s"], 2),
+        "source_fps": round(info["fps"], 2),
+        "sample_fps": settings.video_fps,
+        "frames_processed": frames,
+        "processing_time_s": round(time.monotonic() - t0, 1),
+        "detections_before_tracking": len(raw),
+        "detections_before_tracking_per_class": per_class(raw),
+        "defects_after_tracking": len(defects),
+        "defects_after_tracking_per_class": per_class(defects),
+        "untracked_single_frame": sum(1 for d in defects if d.best.track_id is None),
+        "gps_source": gps_source,
+        "located_defects": located,
+        "unlocated": gps_source == "none" or located < len(defects),
         "events": len(set(event_ids)),
-        "target_fps": settings.video_fps,
+        "tracker": settings.tracker,
+        "demo": demo,
     }
 
 

@@ -34,3 +34,16 @@ def iter_sampled_frames(video_path: str | Path, target_fps: float = 5.0):
             i += 1
     finally:
         cap.release()
+
+
+def video_info(video_path: str | Path) -> dict:
+    """Source frame rate, frame count and duration (seconds) of a video file."""
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
+    try:
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
+        count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    finally:
+        cap.release()
+    return {"fps": fps, "frames": count, "duration_s": count / fps if count else 0.0}

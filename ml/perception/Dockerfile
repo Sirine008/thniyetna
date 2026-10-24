@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 li
 RUN --mount=type=cache,target=/root/.cache/pip pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
 COPY ml/perception/requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r /app/requirements.txt
+# ByteTrack (video tracking): Ultralytics imports lap at runtime. Separate layer: the requirements layer stays cached.
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary --timeout 120 --retries 5 "lap>=0.5.12,<0.6"
 COPY ml/perception /app/perception
 ENV PYTHONPATH=/app
 CMD ["python", "-m", "perception.worker"]
