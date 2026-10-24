@@ -426,4 +426,55 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       check(`assistant ${view}: clear message when an answer has no citation`, (await page.locator('.chat-exchange').last().locator('.uncited').count()) === 1);
     });
   }
+
+  // ------------------------------------------------------------ 9. accounts
+  for (const ministry of ['equipment', 'transport']) {
+    const staffRef = await apiAs(ministry, '/auth/staff');
+    const roles = { equipment: ['inspection_vehicle', 'equipment_supervisor'], transport: ['bus_driver', 'transport_supervisor'] }[ministry];
+    await scenario('accounts', ministry, async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/ministry/${ministry}?vue=comptes`);
+      await page.waitForSelector('.table tbody tr, .empty-state');
+      check(`accounts ${ministry} ${view}: one row per account of the API`, (await page.locator('.table tbody tr').count()) === Math.min(20, staffRef.length), `${staffRef.length}`);
+      await noScroll('list'); await shot(`${ministry}-list`);
+
+      await page.getByRole('button', { name: 'Créer un compte' }).first().click();
+      const options = await page.locator('.modal select option').evaluateAll(o => o.map(x => x.value));
+      check(`accounts ${ministry} ${view}: same role choices as before`, JSON.stringify(options) === JSON.stringify(roles), options.join(','));
+      await page.getByLabel('Identifiant').fill('ui.check');
+      await page.getByLabel('Nom affiché').fill('Contrôle UI');
+      await page.getByLabel('Mot de passe initial').fill('motdepasse-123');
+      await shot(`${ministry}-create`);
+      await page.locator('.modal-foot').getByRole('button', { name: 'Créer le compte' }).click();
+      await page.waitForTimeout(800);
+      const created = calls.find(c => c.method === 'POST' && c.path === '/auth/staff');
+      check(`accounts ${ministry} ${view}: same creation request`, created && created.body === JSON.stringify({ username: 'ui.check', display_name: 'Contrôle UI', role: roles[0], password: 'motdepasse-123' }), created?.body);
+
+      const target = staffRef.find(a => a.active && a.username !== USERS[ministry] && !['equipment_supervisor', 'transport_supervisor'].includes(a.role));
+      if (target) {
+        const row = page.locator('.table tbody tr', { hasText: target.username });
+        await row.getByRole('button', { name: 'Désactiver' }).click();
+        check(`accounts ${ministry} ${view}: deactivation asks for confirmation`, await page.locator('.modal').isVisible() && (await page.locator('.modal').textContent()).includes(target.username));
+        await shot(`${ministry}-confirm`);
+        await page.locator('.modal-foot').getByRole('button', { name: 'Annuler' }).click();
+        check(`accounts ${ministry} ${view}: cancel sends nothing`, !calls.some(c => c.method === 'PATCH'));
+        await row.getByRole('button', { name: 'Désactiver' }).click();
+        await page.locator('.modal-foot').getByRole('button', { name: 'Désactiver le compte' }).click();
+        await page.waitForTimeout(800);
+        const patch = calls.find(c => c.method === 'PATCH');
+        check(`accounts ${ministry} ${view}: same deactivation request`, patch && patch.path === `/auth/staff/${target.username}/active` && patch.body === JSON.stringify({ active: false }), patch?.body);
+
+        await row.getByRole('button', { name: 'Mot de passe' }).click();
+        await page.getByLabel('Nouveau mot de passe').fill('court');
+        await page.locator('.modal-foot').getByRole('button', { name: 'Réinitialiser' }).click();
+        check(`accounts ${ministry} ${view}: short password refused before any request`, (await page.locator('.modal .field-error').count()) === 1 && !calls.some(c => c.path.endsWith('/password')));
+        await page.getByLabel('Nouveau mot de passe').fill('nouveau-mdp-123');
+        await page.locator('.modal-foot').getByRole('button', { name: 'Réinitialiser' }).click();
+        await page.waitForTimeout(800);
+        const pw = calls.find(c => c.path === `/auth/staff/${target.username}/password`);
+        check(`accounts ${ministry} ${view}: same password reset request`, pw && pw.method === 'POST' && pw.body === JSON.stringify({ password: 'nouveau-mdp-123' }), pw?.path);
+      }
+      const own = page.locator('.table tbody tr', { hasText: USERS[ministry] });
+      if (await own.count()) check(`accounts ${ministry} ${view}: no action on one's own account (as before)`, (await own.locator('button').count()) === 0);
+    }, { replies: { '^/auth/staff$': e => ({ ...JSON.parse(e.body), active: true, created_at: new Date().toISOString() }), '/active$': e => ({ username: e.path.split('/')[3], active: JSON.parse(e.body).active }), '/password$': () => ({ status: 'ok' }) } });
+  }
 }

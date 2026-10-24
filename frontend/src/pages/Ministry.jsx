@@ -6,7 +6,7 @@ import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
 import { Button, Notice, useToast } from '../ui';
 import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
-import { LegacyAccounts } from './ministry/legacy';
+import Accounts from './ministry/Accounts';
 import Assistant from '../components/Assistant';
 import Assignments from './ministry/Assignments';
 import Fleet from './ministry/Fleet';
@@ -29,7 +29,7 @@ const SECTIONS = {
     { key: 'priorites', label: 'Priorités d’entretien', icon: Wrench, view: Priorities },
     { key: 'inspections', label: 'Inspections', icon: Truck, view: Inspections },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
-    { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
+    { key: 'comptes', label: 'Comptes', icon: Users, view: Accounts },
   ],
   transport: [
     { key: 'accueil', label: 'Accueil', icon: Gauge, view: TransportHome },
@@ -37,7 +37,7 @@ const SECTIONS = {
     { key: 'lignes', label: 'Lignes & flotte', icon: Route, view: Fleet },
     { key: 'affectations', label: 'Affectations', icon: ClipboardList, view: Assignments },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
-    { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
+    { key: 'comptes', label: 'Comptes', icon: Users, view: Accounts },
   ],
 };
 export const sectionLink = (ministry, key, extra = {}) => `/ministry/${ministry}?${new URLSearchParams({ vue: key, ...extra })}`;

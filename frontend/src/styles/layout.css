@@ -69,11 +69,11 @@
 @media (prefers-reduced-motion: reduce) { .sup-sidebar { transition: none; } }
 
 /* ---------- mobile shell (citizen, driver): bottom navigation ---------- */
-.bottom-nav { position: fixed !important; z-index: var(--z-nav) !important; inset-block-end: 0; inset-inline: 0 !important; transform: none !important; inline-size: 100% !important; block-size: calc(var(--bottomnav-h) + env(safe-area-inset-bottom)) !important;
-  display: flex !important; justify-content: center; gap: 0; padding: 0 0 env(safe-area-inset-bottom) !important; background: var(--c-surface) !important; border-block-start: var(--border) !important; backdrop-filter: none !important; }
-.bottom-nav a { flex: 1; max-inline-size: 140px; min-inline-size: 0 !important; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--c-gray-600) !important; font-size: var(--fs-xs) !important; font-weight: var(--fw-medium) !important; text-decoration: none; min-block-size: var(--tap); position: relative; }
+.bottom-nav { position: fixed; z-index: var(--z-nav); inset-block-end: 0; inset-inline: 0; block-size: calc(var(--bottomnav-h) + env(safe-area-inset-bottom));
+  display: flex; justify-content: center; padding: 0 0 env(safe-area-inset-bottom); background: var(--c-surface); border-block-start: var(--border); }
+.bottom-nav a { flex: 1; max-inline-size: 140px; min-inline-size: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--c-gray-600); font-size: var(--fs-xs); font-weight: var(--fw-medium); text-decoration: none; min-block-size: var(--tap); position: relative; }
 .bottom-nav a svg { inline-size: 22px; block-size: 22px; }
-.bottom-nav a.active { color: var(--c-primary) !important; }
+.bottom-nav a.active { color: var(--c-primary); }
 .bottom-nav a.active::before { content: ""; position: absolute; inset-block-start: 0; inset-inline: 25%; border-block-start: 3px solid var(--c-primary); }
 .bottom-nav a:focus-visible { outline-offset: -3px; }
 
@@ -91,7 +91,7 @@
 .drive-line h1 { font-size: var(--fs-xl); line-height: var(--lh-xl); }
 .drive-trip { font-size: var(--fs-lg); font-weight: var(--fw-bold); margin-block-start: var(--sp-1); }
 .drive-map { position: relative; block-size: min(48vh, 420px); border: var(--border); border-radius: var(--radius-md); overflow: hidden; }
-.drive-map .map-shell, .drive-map-canvas { block-size: 100% !important; }
+.drive-map .map-shell.drive-map-canvas { block-size: 100%; }
 .drive-map .leaflet-host { min-block-size: 0; }
 .drive-banner { display: grid; grid-template-columns: 32px 1fr; gap: var(--sp-2) var(--sp-3); padding: var(--sp-4); border: 1px solid; border-inline-start-width: 6px; border-radius: var(--radius-md); background: var(--c-surface); }
 .drive-banner > svg { inline-size: 28px; block-size: 28px; }
