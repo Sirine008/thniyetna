@@ -95,3 +95,21 @@ export function PointMap({ lat, lon, kind = 'claim', height = 180, label = 'Posi
   }, [map, lat, lon, kind]);
   return <div className="map-shell" style={{ blockSize: height, borderRadius: 'var(--radius-sm)', border: 'var(--border)' }} role="img" aria-label={label}><div ref={ref} className="leaflet-host" style={{ minBlockSize: height }}/>{offline && <Offline/>}</div>;
 }
+
+/** Several points (located detections of an inspection video); fits them in view. points: [{ id, lat, lon, label }] */
+export function PointsMap({ points, height = 260, label = 'Carte des détections' }) {
+  const ref = useRef();
+  const { map, L, offline } = useLeafletMap(ref, { zoom: 12 });
+  useEffect(() => {
+    if (!map) return undefined;
+    const group = L.featureGroup().addTo(map);
+    const icon = L.divIcon({ className: 'th-marker-wrap', html: '<div class="th-marker danger"><span>!</span></div>', iconSize: [34, 34], iconAnchor: [17, 17] });
+    points.forEach(p => L.marker([p.lat, p.lon], { icon, title: p.label, alt: p.label }).addTo(group).bindTooltip(p.label));
+    if (points.length) map.fitBounds(group.getBounds(), { padding: [32, 32], maxZoom: 16 });
+    return () => group.remove();
+  }, [map, points]);
+  return <figure className="map-figure" style={{ margin: 0 }}>
+    <div className="map-shell" style={{ blockSize: height }} role="region" aria-label={label}><div ref={ref} className="leaflet-host"/>{offline && <Offline/>}</div>
+    <figcaption className="map-caption"><MapLegend show={['hazards']}/></figcaption>
+  </figure>;
+}

@@ -100,7 +100,7 @@ const apiAs = async (role, p) => {
   const r = await fetch(`${BASE}/api${p}`, { headers: { Authorization: `Bearer ${s.access_token}` } });
   return r.json();
 };
-await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) }, lib, apiAs, SHEET: sheet, OUT_DIR: OUT, fs, ASK: ask });
+await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) }, lib, apiAs, SHEET: sheet, OUT_DIR: OUT, fs, ASK: ask, ROOT_DIR: ROOT });
 await browser.close();
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${failed.length ? ` — FAILED: ${failed.map(f => f.name).join(' | ')}` : ''}`);

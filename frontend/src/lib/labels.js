@@ -31,6 +31,11 @@ export const SOURCES = { citizen: 'Signalement citoyen (photo)', inspection_vehi
 export const sourceLabel = lookup(SOURCES);
 export const INSPECTION_STATES = { active: 'En cours', completed: 'Terminée' };
 export const inspectionStateLabel = lookup(INSPECTION_STATES);
+// M1 perception jobs (perception_jobs.status) and the GPS source of a video
+export const JOB_STATES = { queued: 'En attente', running: 'Analyse en cours', completed: 'Terminée', failed: 'Échec' };
+export const jobStateLabel = lookup(JOB_STATES);
+export const GPS_SOURCES = { gpx: 'Fichier GPX', session: 'Positions GPS de la session', none: 'Aucune (non localisé)' };
+export const gpsSourceLabel = lookup(GPS_SOURCES);
 
 // Notifications (notification_outbox.topic)
 export const ALERT_TOPICS = {

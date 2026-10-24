@@ -1,5 +1,5 @@
 // Scenarios of check-ui.mjs, one group per redesigned screen.
-export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs, SHEET, OUT_DIR, fs, ASK }) {
+export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs, SHEET, OUT_DIR, fs, ASK, ROOT_DIR }) {
   // ------------------------------------------------------------ design system reference
   await scenario('design', 'equipment', async (page, { view, shot, noScroll }) => {
     await page.goto(`${BASE}/design`);
@@ -23,9 +23,10 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
   await scenario('auth', null, async (page, { view, shot, calls, noScroll }) => {
     await page.goto(`${BASE}/`);
     const hrefs = await page.locator('.role-link').evaluateAll(links => links.map(a => a.getAttribute('href')));
-    check(`auth ${view}: same 4 login links as before`, JSON.stringify(hrefs) === JSON.stringify([
+    check(`auth ${view}: same 4 login links as before + the inspection vehicle`, JSON.stringify(hrefs) === JSON.stringify([
       '/login?role=citizen&next=%2Fcitizen', '/login?role=bus_driver&next=%2Fdriver',
-      '/login?role=equipment_supervisor&next=%2Fministry%2Fequipment', '/login?role=transport_supervisor&next=%2Fministry%2Ftransport']), hrefs.join(' '));
+      '/login?role=equipment_supervisor&next=%2Fministry%2Fequipment', '/login?role=transport_supervisor&next=%2Fministry%2Ftransport',
+      '/login?role=inspection_vehicle&next=%2Finspection']), hrefs.join(' '));
     check(`auth ${view}: no slogan`, !(await page.content()).includes('intelligente'));
     await noScroll('home'); await focusVisible(page, `auth home ${view}`); await shot('home');
 
@@ -477,4 +478,52 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       if (await own.count()) check(`accounts ${ministry} ${view}: no action on one's own account (as before)`, (await own.locator('button').count()) === 0);
     }, { replies: { '^/auth/staff$': e => ({ ...JSON.parse(e.body), active: true, created_at: new Date().toISOString() }), '/active$': e => ({ username: e.path.split('/')[3], active: JSON.parse(e.body).active }), '/password$': () => ({ status: 'ok' }) } });
   }
+
+  // ------------------------------------------------------------ M1 video: inspection vehicle screen, video detections
+  const runFile = `${ROOT_DIR}/data/m1/video_sample/last_run.json`;
+  const RUN = fs.existsSync(runFile) ? JSON.parse(fs.readFileSync(runFile, 'utf8')) : null;
+  if (RUN) {
+    const obsRef = await apiAs('equipment', `/perception/observations?session_id=${RUN.session_id}&limit=500`);
+    const gpxText = fs.readFileSync(`${ROOT_DIR}/data/m1/video_sample/${RUN.gpx}`, 'utf8');
+    // writes answered locally with the ids of the real run: the screen then reads the real job and detections
+    await scenario('inspection', 'inspection', async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/inspection`);
+      await page.evaluate(() => localStorage.removeItem('thniyetna.inspection'));
+      await page.reload();
+      await page.waitForSelector('text=Inspection vidéo');
+      await noScroll('empty'); await shot('empty');
+      await page.getByLabel('Code du véhicule').fill('DEMO-INSP-01');
+      await page.getByRole('button', { name: 'Démarrer l’inspection' }).click();
+      await page.waitForSelector('text=Arrêter l’inspection');
+      const start = calls.find(c => c.path === '/perception/inspections/start');
+      check(`inspection ${view}: same session start request`, start && start.body === JSON.stringify({ vehicle_code: 'DEMO-INSP-01', mode: 'video' }), start?.body);
+      await page.locator('input[type=file][accept="video/*"]').setInputFiles({ name: 'route.webm', mimeType: 'video/webm', buffer: Buffer.from('ui-check') });
+      await page.locator('input[type=file][accept^=".gpx"]').setInputFiles({ name: 'trace.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpxText) });
+      await page.getByLabel('Décalage vidéo / GPS (secondes)').fill('1.5');
+      await page.getByRole('button', { name: 'Envoyer la vidéo' }).click();
+      await page.waitForSelector('.short-list .badge', { timeout: 20000 });
+      const up = calls.find(c => c.path === '/media/video');
+      const job = calls.find(c => c.path === '/perception/jobs' && c.method === 'POST');
+      const body = job && JSON.parse(job.body);
+      check(`inspection ${view}: video uploaded (POST /media/video)`, !!up && up.method === 'POST');
+      check(`inspection ${view}: video job with the session, the GPX and the offset`, body && body.job_type === 'video' && body.storage_key === 'videos/ui-check.webm'
+        && body.session_id === RUN.session_id && body.options.gps_offset_s === 1.5 && body.options.gpx === gpxText, job?.body?.slice(0, 120));
+      await page.waitForSelector('.evidence-list li', { timeout: 20000 }).catch(() => {});
+      check(`inspection ${view}: real job status and metrics shown`, (await page.locator('.short-list').textContent()).includes('Images analysées'));
+      check(`inspection ${view}: one entry per detection of the session`, (await page.locator('.evidence-list li').count()) === obsRef.length, `${obsRef.length}`);
+      await noScroll('session'); await shot('session');
+      await page.getByRole('button', { name: 'Arrêter l’inspection' }).first().click();
+      await page.locator('.modal-foot').getByRole('button', { name: 'Arrêter l’inspection' }).click();
+      await page.waitForSelector('text=Démarrer l’inspection');
+      check(`inspection ${view}: same stop request`, calls.some(c => c.method === 'POST' && c.path === `/perception/inspections/${RUN.session_id}/stop`));
+    }, { replies: {
+      'inspections/start$': () => ({ id: RUN.session_id, vehicle_code: 'DEMO-INSP-01', status: 'active', started_at: new Date().toISOString() }),
+      '^/media/video$': () => ({ media_uri: '/media/files/videos/ui-check.webm', storage_key: 'videos/ui-check.webm' }),
+      '^/perception/jobs$': () => ({ id: RUN.job_id, job_type: 'video', status: 'queued', progress: 0, created_at: new Date().toISOString() }),
+      '/stop$': () => ({ status: 'completed' }),
+    } });
+
+
+  }
+
 }

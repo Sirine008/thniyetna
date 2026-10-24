@@ -55,5 +55,11 @@ export function time(value) {
   const p = partsOf(value, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   return p ? `${p.hour}:${p.minute}` : '—';
 }
+/** Position in a video: "01:07,4" (minutes:seconds, one decimal). */
+export function videoTime(seconds) {
+  if (isBlank(seconds)) return '—';
+  const s = Math.max(0, Number(seconds));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${num(s % 60, 1).padStart(4, '0')}`;
+}
 /** "3 signalements", "1 signalement", "0 signalement" (French: 0 and 1 are singular). */
 export const plural = (n, one, many = `${one}s`) => `${number(n)} ${Math.abs(Number(n)) >= 2 ? many : one}`;

@@ -1,7 +1,7 @@
 // npm test: French formatters, Tunisian time.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { score, pct, distance, duration, dateTime, date, time, coords, plural, number } from './format.js';
+import { score, pct, distance, duration, dateTime, date, time, coords, plural, number, videoTime } from './format.js';
 
 const S = ' ';
 test('scores keep 2 decimals with a French comma', () => {
@@ -31,6 +31,11 @@ test('dates in Africa/Tunis time, whatever the input zone', () => {
   assert.equal(date('2026-10-23'), '23 oct. 2026'); // calendar day, not shifted
   assert.equal(dateTime(null), '—');
   assert.equal(dateTime('not a date'), '—');
+});
+test('position in a video', () => {
+  assert.equal(videoTime(4.25), '00:04,3');
+  assert.equal(videoTime(67.4), '01:07,4');
+  assert.equal(videoTime(null), '—');
 });
 test('coordinates and counts', () => {
   assert.equal(coords(37.2746, 9.8739), '37.27460, 9.87390');
