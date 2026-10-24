@@ -230,7 +230,7 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     if (view === 'desktop') {
       await page.screenshot({ path: `${OUT_DIR}/sheet-print-desktop.png`, fullPage: true });
       const pdf = await page.pdf({ format: 'A4', printBackground: false, preferCSSPageSize: true });
-      fs.writeFileSync(`${OUT_DIR}/sheet-print.pdf.bin`, pdf);
+      fs.writeFileSync(`${OUT_DIR}/sheet-print.pdf`, pdf);
       check('sheet desktop: A4 PDF generated from the print stylesheet', pdf.length > 10000, `${Math.round(pdf.length / 1024)} KB`);
     }
     await page.emulateMedia({ media: 'screen' });
@@ -246,4 +246,72 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     check(`sheet ${view}: demo banner when a row is demo data`, (await page.locator('.sheet-page .demo-banner').count()) === 1);
     await page.keyboard.press('Escape');
   });
+
+  // ------------------------------------------------------------ 5. transport supervisor
+  {
+    const tdash = await apiAs('transport', '/platform/dashboard/transport');
+    const govs = await apiAs('transport', '/prediction/governorates');
+    const routesRef = await apiAs('transport', '/routing/official-routes');
+    const vehiclesRef = await apiAs('transport', '/platform/vehicles');
+    const staffRef = await apiAs('transport', '/auth/staff');
+    const tmap = await (await fetch(`${BASE}/api/platform/map`)).json();
+    const seg = await lib('segments');
+    const count = async page => { await page.waitForSelector('.table tbody tr, .empty-state'); return page.locator('.table tbody tr').count(); };
+    await scenario('transport', 'transport', async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/ministry/transport`);
+      await page.waitForSelector('.kpi');
+      const kpis = (await page.locator('.kpi .kpi-value').allTextContents()).map(Number);
+      check(`transport home ${view}: KPI values are the dashboard API counts`, JSON.stringify(kpis) === JSON.stringify([tdash.active_routes, tdash.active_buses, tdash.assignments, tdash.high_risk_updates]), kpis.join(','));
+      await noScroll('home'); await shot('home');
+
+      await page.goto(`${BASE}/ministry/transport?vue=reseau`);
+      await page.waitForSelector('.card');
+      const forecasts = seg.dayForecasts(govs);
+      const firstTable = page.locator('.card').first().locator('.table tbody tr');
+      check(`transport network ${view}: one row per governorate for the next day`, (await firstTable.count()) === forecasts.length, `${await firstTable.count()} / ${forecasts.length}`);
+      const shown = seg.riskySegments(tmap.segments).length ? seg.riskySegments(tmap.segments) : seg.exposureTop(tmap.segments);
+      const segRows = await page.locator('.card').nth(1).locator('.table tbody tr').count();
+      check(`transport network ${view}: same watched segments as before`, segRows === Math.min(15, shown.length), `${segRows} / ${shown.length}`);
+      if (shown.length) await page.waitForSelector('.leaflet-overlay-pane path', { timeout: 15000 }).then(() => check(`transport network ${view}: map drawn`, true), () => check(`transport network ${view}: map drawn`, false));
+      await noScroll('network'); await shot('network');
+
+      await page.goto(`${BASE}/ministry/transport?vue=lignes`);
+      await count(page);
+      check(`transport fleet ${view}: all lines and vehicles listed`, (await page.locator('.card').first().locator('.table tbody tr').count()) === Math.min(20, routesRef.length)
+        && (await page.locator('.card').nth(1).locator('.table tbody tr').count()) === Math.min(20, vehiclesRef.length));
+      await noScroll('fleet'); await shot('fleet');
+      await page.getByRole('button', { name: 'Ajouter un véhicule' }).first().click();
+      await page.getByLabel('Code').fill('UI-CHECK-BUS');
+      await page.getByLabel('Libellé').fill('Contrôle UI');
+      await shot('vehicle-form');
+      await page.getByRole('button', { name: 'Enregistrer le véhicule' }).click();
+      await page.waitForTimeout(800);
+      const veh = calls.find(c => c.method === 'POST' && c.path === '/platform/vehicles');
+      check(`transport fleet ${view}: same vehicle request`, veh && veh.body === JSON.stringify({ vehicle_code: 'UI-CHECK-BUS', vehicle_type: 'bus', owner_org: 'SRTB', label: 'Contrôle UI' }), veh?.body);
+      check(`transport fleet ${view}: modal closes after success`, (await page.locator('.modal').count()) === 0);
+      await page.getByRole('button', { name: 'Créer une ligne' }).first().click();
+      await page.getByLabel('Code de la ligne').fill('UI-CHECK-L');
+      await page.getByLabel('Nom').fill('Contrôle UI');
+      const lat = page.getByLabel('Latitude'), lon = page.getByLabel('Longitude');
+      await lat.nth(0).fill('37.2744'); await lon.nth(0).fill('9.8739'); await lat.nth(1).fill('37.2540'); await lon.nth(1).fill('9.8770');
+      await page.getByRole('button', { name: 'Calculer et enregistrer la ligne' }).click();
+      await page.waitForTimeout(2500);
+      const plan = calls.find(c => c.path === '/routing/route');
+      const saved = calls.find(c => c.path === '/routing/official-routes' && c.method === 'POST');
+      check(`transport fleet ${view}: line computed with the same OSRM request`, plan && JSON.stringify(JSON.parse(plan.body)) === JSON.stringify({ vehicle_id: 'transport-planning', current_lat: 37.2744, current_lon: 9.8739, destination_lat: 37.254, destination_lon: 9.877, alternatives: 0 }), plan?.body);
+      const savedBody = saved && JSON.parse(saved.body);
+      check(`transport fleet ${view}: line saved with the same payload`, savedBody && savedBody.route_code === 'UI-CHECK-L' && savedBody.name === 'Contrôle UI' && savedBody.owner_org === 'SRTB' && savedBody.active === true && savedBody.coordinates.length > 1, saved ? `${savedBody.coordinates.length} points` : 'no request');
+
+      await page.goto(`${BASE}/ministry/transport?vue=affectations`);
+      await count(page);
+      const firstRoute = routesRef.find(r => r.active)?.route_code || '', firstBus = vehiclesRef.find(v => v.vehicle_type === 'bus' && v.active)?.vehicle_code || '', firstDriver = staffRef.find(a => a.role === 'bus_driver' && a.active)?.username || '';
+      const selects = page.locator('form select');
+      check(`transport assignments ${view}: same pre-selection as before`, (await selects.nth(0).inputValue()) === firstRoute && (await selects.nth(1).inputValue()) === firstBus && (await selects.nth(2).inputValue()) === firstDriver);
+      await noScroll('assignments'); await shot('assignments');
+      await page.getByRole('button', { name: 'Confirmer l’affectation' }).click();
+      await page.waitForTimeout(800);
+      const asg = calls.find(c => c.method === 'POST' && c.path === '/routing/assignments');
+      check(`transport assignments ${view}: same assignment request`, asg && asg.body === JSON.stringify({ route_code: firstRoute, vehicle_code: firstBus, driver_username: firstDriver }), asg?.body);
+    }, { replies: { '^/platform/vehicles$': e => ({ ...JSON.parse(e.body), active: true }), '^/routing/official-routes$': () => ({ id: 'x', route_code: 'UI-CHECK-L', name: 'Contrôle UI' }), '^/routing/assignments$': () => ({ status: 'assigned', id: 'x' }) } });
+  }
 }

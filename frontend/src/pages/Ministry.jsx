@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, ClipboardList, FileText, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
+import { BookOpen, ClipboardList, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
 import InterventionSheet from '../components/InterventionSheet';
 import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
 import { Button, Notice, useToast } from '../ui';
 import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
-import { LegacyAccounts, LegacyAssignments, LegacyAssistant, LegacyFleet, LegacyMetrics, LegacyNetwork } from './ministry/legacy';
+import { LegacyAccounts, LegacyAssistant } from './ministry/legacy';
+import Assignments from './ministry/Assignments';
+import Fleet from './ministry/Fleet';
+import Network from './ministry/Network';
+import TransportHome from './ministry/TransportHome';
 import Detections from './ministry/Detections';
 import EquipmentHome from './ministry/EquipmentHome';
 import Inspections from './ministry/Inspections';
@@ -25,9 +29,10 @@ const SECTIONS = {
     { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
   ],
   transport: [
-    { key: 'reseau', label: 'Réseau à risque', icon: Map, view: LegacyNetwork },
-    { key: 'affectations', label: 'Affectations', icon: ClipboardList, view: LegacyAssignments },
-    { key: 'lignes', label: 'Lignes & flotte', icon: Route, view: LegacyFleet },
+    { key: 'accueil', label: 'Accueil', icon: Gauge, view: TransportHome },
+    { key: 'reseau', label: 'Réseau à risque', icon: Map, view: Network },
+    { key: 'lignes', label: 'Lignes & flotte', icon: Route, view: Fleet },
+    { key: 'affectations', label: 'Affectations', icon: ClipboardList, view: Assignments },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: LegacyAssistant },
     { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
   ],
@@ -53,7 +58,6 @@ export default function Ministry({ ministry }) {
       <Button icon={RefreshCw} loading={w.loading} onClick={w.reload}>{w.loading ? 'Actualisation…' : 'Actualiser'}</Button>
     </div>
     {w.error && <Notice tone="error" title={w.error}/>}
-    {!w.isEquipment && <LegacyMetrics w={w}/>}
     <View w={w} me={me} onSheet={setSheetSegment} params={params}/>
     {sheetSegment && <InterventionSheet segment={sheetSegment} onClose={() => setSheetSegment(null)}/>}
   </SupervisorLayout>;

@@ -248,3 +248,7 @@ a.kpi:hover .kpi-link { text-decoration: underline; }
 .short-link:hover { background: var(--c-gray-25); color: var(--c-text); }
 .short-main { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
 @media (max-width: 560px) { .short-link { flex-direction: column; align-items: flex-start; } }
+
+/* ---------- fieldset ---------- */
+.fieldset { border: var(--border); border-radius: var(--radius-sm); padding: var(--sp-3) var(--sp-4) var(--sp-4); margin: 0; min-inline-size: 0; }
+.fieldset legend { padding: 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-gray-800); }
