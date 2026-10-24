@@ -45,3 +45,6 @@ backup/
 # RAG corpus: external documents, not versioned (only the README is)
 data/rag/corpus/*
 !data/rag/corpus/README.md
+
+# UI screenshots: generated locally by docs/ui/*.mjs, not committed (already tracked ones stay)
+docs/ui/**/*.png

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Citizen from './pages/Citizen';
+import DesignSystem from './pages/DesignSystem';
 import CitizenMap from './pages/CitizenMap';
 import Claims from './pages/Claims';
 import Driver from './pages/Driver';
@@ -12,11 +13,16 @@ import Login from './pages/Login';
 import Ministry from './pages/Ministry';
 import Report from './pages/Report';
 import './styles/app.css';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/components.css';
+import './styles/map.css';
+import { ToastProvider } from './ui';
 
 const guard = (roles, element) => <ProtectedRoute roles={roles}>{element}</ProtectedRoute>;
 
 export default function App() {
-  return <BrowserRouter><Routes>
+  return <ToastProvider><BrowserRouter><Routes>
     <Route path="/" element={<Home/>}/>
     <Route path="/login" element={<Login/>}/>
     <Route path="/citizen" element={guard(['citizen'], <Citizen/>)}/>
@@ -28,6 +34,8 @@ export default function App() {
     <Route path="/driver/alerts" element={guard(['bus_driver'], <DriverAlerts/>)}/>
     <Route path="/ministry/equipment" element={guard(['equipment_supervisor'], <Ministry ministry="equipment"/>)}/>
     <Route path="/ministry/transport" element={guard(['transport_supervisor'], <Ministry ministry="transport"/>)}/>
+    {/* design system reference (supervisor roles) */}
+    <Route path="/design" element={guard(['equipment_supervisor', 'transport_supervisor'], <DesignSystem/>)}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
-  </Routes></BrowserRouter>;
+  </Routes></BrowserRouter></ToastProvider>;
 }
