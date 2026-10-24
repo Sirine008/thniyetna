@@ -169,7 +169,9 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     check(`equipment detections ${view}: only detections to validate by default (as before)`, (await countText(page)) === pending.length, `${await countText(page)} / ${pending.length}`);
     await noScroll('detections'); await shot('detections');
     const withObs = await apiAs('equipment', '/perception/observations?limit=500');
-    const ev = pending.find(e => withObs.some(o => o.event_id === e.id && o.bbox_xyxy)) || pending[0];
+    // a photo detection (video detections show their evidence frame, box already drawn: checked in 'detections-video')
+    const isVideo = e => withObs.some(o => o.event_id === e.id && o.frame_time_s != null);
+    const ev = pending.find(e => !isVideo(e) && withObs.some(o => o.event_id === e.id && o.bbox_xyxy)) || pending.find(e => !isVideo(e));
     if (ev) {
       await page.goto(`${BASE}/ministry/equipment?vue=detections&detection=${ev.id}`);
       await page.waitForSelector('.side-panel');
@@ -523,7 +525,24 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       '/stop$': () => ({ status: 'completed' }),
     } });
 
-
+    // best video observation of an event (the panel shows the highest-confidence evidence frame of the event)
+    const videoEvent = obsRef.filter(o => o.event_id && o.frame_time_s != null).sort((a, b) => b.confidence - a.confidence)[0];
+    if (videoEvent) {
+      await scenario('detections-video', 'equipment', async (page, { view, shot, calls }) => {
+        await page.goto(`${BASE}/ministry/equipment?vue=detections&etat=toutes&detection=${videoEvent.event_id}`);
+        await page.waitForSelector('.side-panel');
+        await page.waitForTimeout(1500);
+        const text = await page.locator('.side-panel').textContent();
+        check(`detections video ${view}: evidence frame, time in the video and session`, text.includes('Image de preuve') && text.includes('Moment dans la vidéo') && text.includes(videoEvent.session_id));
+        check(`detections video ${view}: evidence image shown without a second box`, (await page.locator('.side-panel .image-boxes svg').count()) === 0 && (await page.locator('.side-panel img').first().getAttribute('src')) === obsRef.filter(o => o.event_id === videoEvent.event_id && o.frame_time_s != null).sort((a, b) => b.confidence - a.confidence)[0].media_uri);
+        await shot('panel');
+        const validate = page.locator('.side-panel-foot').getByRole('button', { name: 'Valider la détection' });
+        if (await validate.count()) {
+          await validate.click(); await page.waitForTimeout(800);
+          check(`detections video ${view}: validated like a photo detection`, calls.some(c => c.method === 'PATCH' && c.path === `/perception/events/${videoEvent.event_id}/validate`));
+        }
+      }, { replies: { 'validate$': () => ({ status: 'validated' }) } });
+    }
   }
 
 }

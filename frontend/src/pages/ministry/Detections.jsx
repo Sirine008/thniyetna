@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ExternalLink } from 'lucide-react';
 import { PointMap } from '../../components/LeafletMap';
 import { api } from '../../lib/api';
-import { coords, dateTime, pct, plural } from '../../lib/format';
+import { coords, dateTime, pct, plural, videoTime } from '../../lib/format';
 import { defectTitle, sourceLabel } from '../../lib/labels';
 import { Button, Card, DataTable, DefinitionList, DemoBadge, DemoBanner, EmptyState, EventStateBadge, Field, SidePanel, SkeletonRows, Toolbar } from '../../ui';
 import { ImageBoxes } from '../../ui/ImageBoxes';
@@ -11,18 +11,27 @@ import { useUrlFilter } from './filters';
 const DAY_MS = 24 * 3600 * 1000;
 const STATES = [['a-valider', 'À valider', e => !e.validated], ['validees', 'Validées', e => e.validated], ['toutes', 'Toutes', () => true]];
 
-function DetectionPanel({ event, boxes, w, onClose }) {
+/** Best video observation of an event (inspection video: evidence frame with its box already drawn). */
+const videoObservation = (observations, event) => observations.filter(o => o.event_id === event.id && o.frame_time_s != null)
+  .sort((a, b) => Number(b.confidence) - Number(a.confidence))[0];
+
+function DetectionPanel({ event, boxes, video, w, onClose }) {
   return <SidePanel title={defectTitle(event.defect_type)} subtitle={`Observée le ${dateTime(event.timestamp)}`} onClose={onClose}
     footer={!event.validated ? <Button variant="primary" icon={Check} loading={w.saving === event.id} onClick={() => w.validateEvent(event.id)}>Valider la détection</Button>
       : <span className="t-sm t-muted">Détection validée : elle est prise en compte par la prédiction M2.</span>}>
     {event.demo && <DemoBanner/>}
-    <div className="panel-section"><h3>Image analysée</h3>
-      <ImageBoxes src={event.media_uri} alt={`Image de la détection : ${defectTitle(event.defect_type)}`} boxes={boxes}/>
+    <div className="panel-section"><h3>{video ? 'Image de preuve (meilleure image du suivi)' : 'Image analysée'}</h3>
+      {video ? <ImageBoxes src={video.media_uri || event.media_uri} alt={`Image de preuve de la vidéo : ${defectTitle(event.defect_type)} à ${videoTime(video.frame_time_s)}`}/>
+        : <ImageBoxes src={event.media_uri} alt={`Image de la détection : ${defectTitle(event.defect_type)}`} boxes={boxes}/>}
+      {video && <p className="t-xs t-muted">Cadre rouge tracé par le modèle M1 sur l’image de la vidéo où la confiance est la plus haute.</p>}
       {event.media_uri && <a className="t-sm row" style={{ gap: 4 }} href={event.media_uri} target="_blank" rel="noreferrer">Ouvrir le média<ExternalLink size={14} aria-hidden="true"/></a>}
     </div>
     <div className="panel-section"><h3>Détection</h3>
       <DefinitionList items={[['Classe', defectTitle(event.defect_type)], ['Confiance du modèle', pct(event.confidence)], ['Sévérité estimée', pct(event.severity)],
-        ['Source', sourceLabel(event.source)], ['État', <EventStateBadge validated={event.validated}/>], ['Coordonnées', <span className="t-num">{coords(event.latitude, event.longitude)}</span>]]}/>
+        ['Source', video ? 'Vidéo d’inspection' : sourceLabel(event.source)],
+        video && ['Moment dans la vidéo', <span className="t-num">{videoTime(video.frame_time_s)}</span>],
+        video && ['Session d’inspection', video.session_id ? <span className="t-mono t-sm">{video.session_id}</span> : '—'],
+        ['État', <EventStateBadge validated={event.validated}/>], ['Coordonnées', <span className="t-num">{coords(event.latitude, event.longitude)}</span>]]}/>
     </div>
     <div className="panel-section"><h3>Position</h3><PointMap lat={Number(event.latitude)} lon={Number(event.longitude)} kind="event" label={`Position de la détection : ${coords(event.latitude, event.longitude)}`}/></div>
   </SidePanel>;
@@ -47,7 +56,7 @@ export default function Detections({ w }) {
 
   const columns = [
     { key: 'timestamp', label: 'Observée le', render: e => <span className="t-num">{dateTime(e.timestamp)}</span>, sort: e => e.timestamp, width: 170 },
-    { key: 'defect_type', label: 'Classe', render: e => <><span className="cell-title">{defectTitle(e.defect_type)}</span><span className="cell-sub">{sourceLabel(e.source)}</span>{e.demo && <DemoBadge/>}</>, sort: e => defectTitle(e.defect_type) },
+    { key: 'defect_type', label: 'Classe', render: e => { const v = videoObservation(observations, e); return <><span className="cell-title">{defectTitle(e.defect_type)}</span><span className="cell-sub">{v ? `Vidéo d’inspection · ${videoTime(v.frame_time_s)}` : sourceLabel(e.source)}</span>{e.demo && <DemoBadge/>}</>; }, sort: e => defectTitle(e.defect_type) },
     { key: 'confidence', label: 'Confiance', num: true, render: e => pct(e.confidence), sort: e => Number(e.confidence) },
     { key: 'severity', label: 'Sévérité', num: true, render: e => pct(e.severity), sort: e => Number(e.severity) },
     { key: 'state', label: 'État', render: e => <EventStateBadge validated={e.validated}/>, sort: e => (e.validated ? 1 : 0) },
@@ -70,6 +79,6 @@ export default function Detections({ w }) {
           empty={<EmptyState title={state === 'a-valider' && period === 'toutes' && klass === 'toutes' ? 'Aucune détection à valider.' : 'Aucune détection ne correspond aux filtres.'}
             action={state !== 'toutes' || period !== 'toutes' || klass !== 'toutes' ? <Button onClick={() => { setState('toutes'); setPeriod('toutes'); setKlass('toutes'); }}>Afficher toutes les détections</Button> : null}/>}/>}
     </Card>
-    {open && <DetectionPanel event={open} boxes={boxesFor(open)} w={w} onClose={() => setOpenId('')}/>}
+    {open && <DetectionPanel event={open} boxes={boxesFor(open)} video={videoObservation(observations, open)} w={w} onClose={() => setOpenId('')}/>}
   </>;
 }
