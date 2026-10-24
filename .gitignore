@@ -49,3 +49,5 @@ data/rag/corpus/*
 # UI screenshots: generated locally by docs/ui/*.mjs, not committed (already tracked ones stay)
 docs/ui/**/*.png
 docs/ui/**/*.pdf
+# M1 test videos and their GPX (local only)
+data/m1/video_sample/

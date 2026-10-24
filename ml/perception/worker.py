@@ -323,6 +323,10 @@ def _process_video(job: dict, detector: RoadDamageDetector) -> dict:
                 conn.execute(text("UPDATE perception_jobs SET progress=:p,updated_at=now() WHERE id=:id"),
                              {"p": min(0.95, frames / expected), "id": job["id"]})
 
+    if frames == 0:
+        # e.g. AV1 without a hardware decoder: fail visibly instead of completing with nothing analysed
+        raise ValueError(f"Aucune image décodée dans la vidéo (codec {info['codec']} non pris en charge par le worker) : "
+                         "convertir la vidéo en H.264 ou VP9.")
     defects = aggregate_tracks(raw)
     records = geolocate(defects, samples, start, settings.gps_max_gap_s)
     event_ids: list[str] = []
@@ -348,6 +352,7 @@ def _process_video(job: dict, detector: RoadDamageDetector) -> dict:
     return {
         "video_duration_s": round(info["duration_s"], 2),
         "source_fps": round(info["fps"], 2),
+        "codec": info["codec"],
         "sample_fps": settings.video_fps,
         "frames_processed": frames,
         "processing_time_s": round(time.monotonic() - t0, 1),

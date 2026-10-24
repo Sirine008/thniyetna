@@ -110,3 +110,11 @@ def test_worker_creates_road_events_only_for_located_observations():
     assert guard < body.index('INSERT INTO road_events') and guard < body.index('SELECT id::text FROM road_events')
     video = src[src.index('def _process_video'):src.index('def main')]
     assert 'latitude=rec.latitude, longitude=rec.longitude' in video
+
+
+def test_a_video_with_no_decodable_frame_fails_instead_of_completing_empty():
+    """Seen with an AV1 file and no hardware decoder: 0 frames must be a job failure, not an empty success."""
+    src = (Path(__file__).resolve().parents[1] / 'worker.py').read_text(encoding='utf-8')
+    video = src[src.index('def _process_video'):src.index('def main')]
+    assert 'if frames == 0:' in video and video.index('if frames == 0:') < video.index('aggregate_tracks(raw)')
+    assert 'raise ValueError' in video[video.index('if frames == 0:'):video.index('aggregate_tracks(raw)')]
