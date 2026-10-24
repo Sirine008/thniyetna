@@ -562,4 +562,19 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     }, { views: ['mobile'], replies: { '/ack$': () => ({ status: 'acknowledged' }) } });
   }
 
+  // ------------------------------------------------------------ transport « Alertes conducteurs »
+  {
+    const ref = await apiAs('transport', '/platform/driver-alerts');
+    await scenario('transport-alerts', 'transport', async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/ministry/transport?vue=alertes`);
+      await page.waitForSelector('.table tbody tr, .empty-state');
+      check(`transport alerts ${view}: one row per driver alert (all states)`, (await page.locator('.toolbar-count').textContent()).startsWith(String(ref.length)), `${ref.length}`);
+      check(`transport alerts ${view}: data from GET /platform/driver-alerts`, calls.some(c => c.path === '/platform/driver-alerts'));
+      await page.locator('select').nth(1).selectOption('actives');
+      check(`transport alerts ${view}: active filter`, (await page.locator('.toolbar-count').textContent()).startsWith(String(ref.filter(a => a.active).length)));
+      await page.locator('select').nth(1).selectOption('toutes');
+      await noScroll('list'); await shot('list');
+      if (ref.length) { await page.locator('.table tbody tr').first().click(); await page.waitForSelector('.side-panel'); await shot('panel'); }
+    });
+  }
 }

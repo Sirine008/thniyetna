@@ -1,7 +1,7 @@
 """M4 backend aggregation for citizen, driver and ministry dashboards."""
 from datetime import datetime, timezone
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
@@ -63,6 +63,39 @@ def transport_dashboard(db:Session=Depends(get_db),user=Depends(require_role("tr
 @router.get("/alerts")
 def alerts(db:Session=Depends(get_db),user=Depends(get_current_user)):
     return list(db.execute(text("SELECT id::text,topic,payload,status,created_at FROM notification_outbox WHERE recipient_ref IS NULL OR recipient_ref=:u OR recipient_ref=:r ORDER BY created_at DESC LIMIT 100"),{"u":user["sub"],"r":user["role"]}).mappings())
+
+# Driver alerts (M3 reroute / warning) for the transport supervisor: read-only, newest first.
+# Line = the active (else latest) assignment of that driver on that vehicle. acknowledged = the driver pressed
+# « J'ai pris connaissance » (status delivered). The alerts themselves are unchanged (written by /routing/driver/next-best).
+DRIVER_ALERTS_SQL = text("""
+  SELECT n.id::text, n.topic, n.status, n.created_at, n.delivered_at, n.recipient_ref AS driver,
+         n.payload->>'vehicle_id' AS vehicle_code,
+         coalesce((n.payload->>'superseded')::boolean, false) AS superseded, n.payload->>'superseded_note' AS superseded_note,
+         coalesce((n.payload->>'confirmations')::int, 1) AS confirmations, n.payload->>'last_confirmed_at' AS last_confirmed_at,
+         (n.payload->>'risk')::float AS risk, (n.payload->>'alternative_risk')::float AS alternative_risk,
+         n.payload->>'reason' AS reason, coalesce((n.payload->>'hazards_on_initial')::int, 0) AS hazards_on_initial,
+         coalesce((n.payload->>'demo')::boolean, false) AS demo, r.route_code, r.route_name
+  FROM notification_outbox n
+  LEFT JOIN LATERAL (
+    SELECT o.route_code, o.name AS route_name FROM route_assignments ra
+    JOIN official_routes o ON o.id = ra.route_id JOIN vehicles v ON v.id = ra.vehicle_id
+    WHERE ra.driver_username = n.recipient_ref AND v.vehicle_code = n.payload->>'vehicle_id'
+    ORDER BY ra.active DESC, ra.created_at DESC LIMIT 1
+  ) r ON true
+  WHERE n.topic IN ('driver.reroute.alert', 'driver.route.warning')
+  ORDER BY n.created_at DESC
+  LIMIT :limit
+""")
+
+
+@router.get("/driver-alerts")
+def driver_alerts(limit: int = Query(default=200, ge=1, le=500), db: Session = Depends(get_db), user=Depends(require_role("transport_supervisor"))):
+    rows = [dict(r) for r in db.execute(DRIVER_ALERTS_SQL, {"limit": limit}).mappings()]
+    for r in rows:
+        r["kind"] = "reroute" if r["topic"] == "driver.reroute.alert" else "warning"
+        r["acknowledged"] = r["status"] == "delivered"
+        r["active"] = r["status"] == "pending" and not r["superseded"]
+    return rows
 
 @router.post("/alerts/{notification_id}/ack")
 def ack(notification_id:str,db:Session=Depends(get_db),user=Depends(get_current_user)):

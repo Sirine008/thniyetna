@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, ClipboardList, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
+import { Bell, BookOpen, ClipboardList, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
 import InterventionSheet from '../components/InterventionSheet';
 import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
@@ -9,6 +9,7 @@ import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
 import Accounts from './ministry/Accounts';
 import Assistant from '../components/Assistant';
 import Assignments from './ministry/Assignments';
+import DriverAlertsBoard from './ministry/DriverAlertsBoard';
 import Fleet from './ministry/Fleet';
 import Network from './ministry/Network';
 import TransportHome from './ministry/TransportHome';
@@ -36,6 +37,7 @@ const SECTIONS = {
     { key: 'reseau', label: 'Réseau à risque', icon: Map, view: Network },
     { key: 'lignes', label: 'Lignes & flotte', icon: Route, view: Fleet },
     { key: 'affectations', label: 'Affectations', icon: ClipboardList, view: Assignments },
+    { key: 'alertes', label: 'Alertes conducteurs', icon: Bell, view: DriverAlertsBoard },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
     { key: 'comptes', label: 'Comptes', icon: Users, view: Accounts },
   ],

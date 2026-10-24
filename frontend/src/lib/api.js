@@ -87,6 +87,7 @@ export const api = {
   },
   driver: () => request('/routing/driver/me', { auth: true }),
   alerts: () => request('/platform/alerts', { auth: true }),
+  driverAlerts: (limit = 200) => request(`/platform/driver-alerts?limit=${limit}`, { auth: true }),
   ackAlert: id => request(`/platform/alerts/${encodeURIComponent(id)}/ack`, { auth: true, method: 'POST' }),
   nextBest: body => request('/routing/driver/next-best', { auth: true, method: 'POST', body }),
   planRoute: body => request('/routing/route', { method: 'POST', body }),
