@@ -158,6 +158,7 @@ Légende des statuts : ✅ Vérifié en direct · 🟡 Testé (tests auto) mais 
 
 | Limite | Source |
 |---|---|
+| *(24/10)* Filtre « Dernières 24 h » de l’écran Détections : calculé dans le navigateur sur les 100 détections les plus récentes renvoyées par `GET /perception/events?limit=100` ; il sous-compte s’il y a plus de 100 détections en 24 h (la tuile « Détections des dernières 24 h » vient, elle, du compteur exact de `/platform/dashboard/equipment`) | `frontend/src/pages/ministry/Detections.jsx`, `ministry/useWorkspace.js` |
 | *(23/10)* M1 utilise un modèle public non entraîné sur des routes tunisiennes ; nids-de-poule des photos rapprochées non détectés (0/7), toutes les confiances < 0,40 ; aucun mAP local ; la sévérité est un indicateur visuel | `docs/M1_MODEL_CARD.md` |
 | *(23/10)* Poids sous licence AGPL-3.0 (obligations en cas de service réseau public) | `docs/M1_MODEL_CARD.md`, `models/README.md` |
 | Un seul événement M1 en base : le risque absolu M2 reste faible ailleurs (674 segments `low`) | Base `risk_scores` |
