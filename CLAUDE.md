@@ -107,6 +107,9 @@ history carries the signal · trees do not beat logistic regression · accident 
   `demo` and the UI shows "DÉMO — données fictives". M2 training excludes them (`condition_model.TRAINING_EVENTS_SQL`,
   `drop_demo`, test `test_demo_events_are_excluded_from_condition_training`).
 - Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
+  - The supervisors' « Réinitialiser le mot de passe » changes a demo account's password in the DB without touching
+    that file (24/10: demo.driver1 no longer matched it). Fix: `POST /auth/staff/<username>/password` as
+    transport.supervisor with the password from the file (demo rows only), then log in again to check.
 
 ## M3 destination search (place index, since 2026-10-23)
 - Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`): two identical fields « Départ » (A)
