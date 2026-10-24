@@ -62,7 +62,7 @@ export async function scenario(group, role, steps, { views = ['desktop', 'mobile
   if (ONLY.length && !ONLY.includes(group)) return;
   for (const view of views) {
     const context = await browser.newContext({ ...VIEWS[view], locale: 'fr-FR', timezoneId: 'Europe/Paris', ...(geolocation ? { geolocation, permissions: ['geolocation'] } : {}) });
-    if (role) { const s = await sessionFor(USERS[role] || role); await context.addInitScript(v => localStorage.setItem('thniyetna.session', v), s); }
+    if (role) { const s = await sessionFor(USERS[role] || role); await context.addInitScript(v => { if (!sessionStorage.getItem('ui-check-seeded')) { localStorage.setItem('thniyetna.session', v); sessionStorage.setItem('ui-check-seeded', '1'); } }, s); }
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));

@@ -67,4 +67,54 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     await page.waitForURL(/\/citizen\/claims/);
     check(`auth ${view}: real login lands on the requested page`, true);
   });
+
+  // ------------------------------------------------------------ 2. layouts
+  const LOAD = {
+    equipment: ['GET /platform/dashboard/equipment', 'GET /platform/complaints', 'GET /perception/events?limit=100', 'GET /perception/inspections?limit=100', 'GET /platform/map', 'GET /prediction/model', 'GET /auth/staff'],
+    transport: ['GET /platform/dashboard/transport', 'GET /routing/official-routes', 'GET /platform/vehicles', 'GET /routing/assignments', 'GET /platform/map', 'GET /prediction/governorates', 'GET /prediction/model', 'GET /auth/staff'],
+  };
+  for (const ministry of ['equipment', 'transport']) {
+    await scenario('layout', ministry, async (page, { view, shot, calls, noScroll }) => {
+      await page.goto(`${BASE}/ministry/${ministry}`);
+      await page.waitForSelector('.sup-shell');
+      await page.waitForLoadState('networkidle');
+      const loaded = [...new Set(calls.filter(c => c.method === 'GET').map(c => `${c.method} ${c.path}${c.query}`))].filter(c => !c.includes('/realtime/'));
+      check(`layout ${ministry} ${view}: same requests on load as before`, JSON.stringify([...loaded].sort()) === JSON.stringify([...LOAD[ministry]].sort()), loaded.join(', '));
+      check(`layout ${ministry} ${view}: top bar shows user and role`, (await page.locator('.sup-user-name').textContent()).includes('Superviseur') || view === 'mobile');
+      await noScroll('shell');
+      if (view === 'mobile') {
+        check(`layout ${ministry} mobile: sidebar hidden until the menu is opened`, !(await page.locator('.sup-sidebar').isVisible()));
+        await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+        await page.waitForTimeout(250);
+        check(`layout ${ministry} mobile: menu opens the sidebar`, await page.locator('.sup-sidebar').isVisible());
+        await shot('menu');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(250);
+        check(`layout ${ministry} mobile: Escape closes the menu`, !(await page.locator('.sup-sidebar').isVisible()));
+        await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+      }
+      const links = page.locator('.sup-nav-link');
+      const second = links.nth(1);
+      const label = (await second.textContent()).replace(/\d+$/, '');
+      await second.click();
+      await page.waitForURL(/vue=/);
+      check(`layout ${ministry} ${view}: sidebar link opens the section`, (await page.locator('.sup-nav-link[aria-current="page"]').textContent()).startsWith(label) && (await page.locator('h1').first().textContent()) === label, label);
+      const requestsAfter = calls.filter(c => c.method === 'GET' && !c.path.includes('realtime')).length;
+      check(`layout ${ministry} ${view}: switching section does not refetch (as before)`, requestsAfter === loaded.length, `${requestsAfter}`);
+      await shot('shell');
+      await page.locator('.sup-user .btn').click();
+      await page.waitForURL(`${BASE}/`);
+      check(`layout ${ministry} ${view}: logout clears the session`, await page.evaluate(() => localStorage.getItem('thniyetna.session') === null));
+    });
+  }
+  for (const [role, base, expected] of [['citizen', '/citizen', ['/citizen', '/citizen/map', '/citizen/report', '/citizen/claims']], ['driver', '/driver', ['/driver', '/driver/map', '/driver/alerts']]]) {
+    await scenario('layout', role, async (page, { view }) => {
+      await page.goto(`${BASE}${base}/claims`.replace('/driver/claims', '/driver/alerts'));
+      await page.waitForSelector('.bottom-nav');
+      const hrefs = await page.locator('.bottom-nav a').evaluateAll(as => as.map(a => a.getAttribute('href')));
+      check(`layout ${role} ${view}: bottom navigation keeps the same destinations`, JSON.stringify(hrefs) === JSON.stringify(expected), hrefs.join(' '));
+      const heights = await page.locator('.bottom-nav a').evaluateAll(as => as.map(a => a.getBoundingClientRect().height));
+      check(`layout ${role} ${view}: bottom navigation targets >= 44 px`, heights.every(h => h >= 44), heights.join(','));
+    }, { views: ['mobile'] });
+  }
 }
