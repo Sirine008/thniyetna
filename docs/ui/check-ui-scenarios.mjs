@@ -1,5 +1,5 @@
 // Scenarios of check-ui.mjs, one group per redesigned screen.
-export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs, SHEET, OUT_DIR, fs }) {
+export default async function scenarios({ scenario, check, focusVisible, BASE, USERS, PASSWORDS, lib, apiAs, SHEET, OUT_DIR, fs, ASK }) {
   // ------------------------------------------------------------ design system reference
   await scenario('design', 'equipment', async (page, { view, shot, noScroll }) => {
     await page.goto(`${BASE}/design`);
@@ -384,5 +384,46 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
       }
       await noScroll('claims'); await shot('claims');
     }, { geolocation: GEO, replies: { '^/media/image$': () => ({ media_uri: '/media/files/ui-check.png', storage_key: 'ui-check' }), '^/platform/complaints$': e => ({ id: 'x', status: 'open', ...JSON.parse(e.body) }) } });
+  }
+
+  // ------------------------------------------------------------ 8. assistant (recorded real answer replayed)
+  if (ASK) {
+    const status = await apiAs('equipment', '/assistant/status');
+    const asked = [];   // requests answered by the replay (registered after the recorder, so it sees them first)
+    const replay = body => async route => { const r = route.request(); asked.push({ method: r.method(), body: r.postData() }); await new Promise(res => setTimeout(res, 1500)); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }); };
+    await scenario('assistant', 'equipment', async (page, { view, shot, calls, noScroll }) => {
+      await page.route('**/api/assistant/ask', replay(ASK.body));
+      await page.goto(`${BASE}/ministry/equipment?vue=assistant`);
+      await page.waitForSelector('.chat');
+      await page.waitForFunction(() => !document.querySelector('.chat .card-head [role=status]')?.textContent.includes('Vérification'));
+      const line = await page.locator('.chat .card-head [role=status]').textContent();
+      check(`assistant ${view}: status from GET /assistant/status`, status.ollama?.reachable ? line.includes(`${status.documents}`) && line.includes(`${status.chunks}`) : line.includes('indisponible'), line);
+      await noScroll('empty'); await shot('empty');
+      await page.getByLabel('Votre question').fill(ASK.question);
+      await page.getByRole('button', { name: 'Envoyer la question' }).click();
+      await page.waitForSelector('.generating');
+      check(`assistant ${view}: generating state while the answer is produced`, /s écoulées/.test(await page.locator('.generating').textContent()));
+      await shot('generating');
+      await page.waitForSelector('.chat-answer');
+      const ask = asked[asked.length - 1];
+      check(`assistant ${view}: same request (POST /assistant/ask {question})`, ask && ask.method === 'POST' && ask.body === JSON.stringify({ question: ASK.question }), ask?.body);
+      const cited = /\[\d/.test(ASK.body.answer);
+      check(`assistant ${view}: answer shown with its sources`, (await page.locator('.chat-answer .source-item').count()) === (ASK.body.sources?.length || 0));
+      check(`assistant ${view}: no-citation message only when the answer cites nothing`, (await page.locator('.chat-answer .uncited').count()) === (cited ? 0 : 1));
+      if (cited) {
+        await page.locator('.citation-link').first().click();
+        await page.waitForTimeout(400);
+        check(`assistant ${view}: a citation opens and focuses its source`, await page.evaluate(() => document.activeElement?.classList.contains('source-item')));
+      }
+      check(`assistant ${view}: history kept for the session (same storage key)`, await page.evaluate(() => JSON.parse(sessionStorage.getItem('thniyetna.assistant.equipment') || '[]').length === 1));
+      await noScroll('answer'); await shot('answer');
+      const uncited = { ...ASK.body, answer: ASK.body.answer.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, '') };
+      await page.unroute('**/api/assistant/ask');
+      await page.route('**/api/assistant/ask', replay(uncited));
+      await page.getByLabel('Votre question').fill('Question sans citation dans la réponse');
+      await page.getByRole('button', { name: 'Envoyer la question' }).click();
+      await page.waitForFunction(() => document.querySelectorAll('.chat-answer').length === 2, null, { timeout: 15000 });
+      check(`assistant ${view}: clear message when an answer has no citation`, (await page.locator('.chat-exchange').last().locator('.uncited').count()) === 1);
+    });
   }
 }

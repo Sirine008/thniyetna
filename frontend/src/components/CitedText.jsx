@@ -12,6 +12,8 @@ const sourceId = (scope, n) => `${scope}-src-${n}`;
 function focusSource(scope, n) {
   const card = document.getElementById(sourceId(scope, n));
   if (!card) return;
+  const details = card.closest('details');
+  if (details) details.open = true;
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card.focus({ preventScroll: true });
   card.classList.add('is-cited');

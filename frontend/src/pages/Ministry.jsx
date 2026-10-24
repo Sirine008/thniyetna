@@ -6,7 +6,8 @@ import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
 import { Button, Notice, useToast } from '../ui';
 import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
-import { LegacyAccounts, LegacyAssistant } from './ministry/legacy';
+import { LegacyAccounts } from './ministry/legacy';
+import Assistant from '../components/Assistant';
 import Assignments from './ministry/Assignments';
 import Fleet from './ministry/Fleet';
 import Network from './ministry/Network';
@@ -17,6 +18,8 @@ import Inspections from './ministry/Inspections';
 import Priorities from './ministry/Priorities';
 import Reports from './ministry/Reports';
 
+const AssistantView = ({ w }) => <Assistant ministry={w.ministry}/>;
+
 // Sections of each ministry: URL `?vue=<key>` (so KPI tiles and links can open a filtered list).
 const SECTIONS = {
   equipment: [
@@ -25,7 +28,7 @@ const SECTIONS = {
     { key: 'detections', label: 'Détections', icon: ScanSearch, count: w => w.dashboard.unvalidated_events, view: Detections },
     { key: 'priorites', label: 'Priorités d’entretien', icon: Wrench, view: Priorities },
     { key: 'inspections', label: 'Inspections', icon: Truck, view: Inspections },
-    { key: 'assistant', label: 'Assistant', icon: BookOpen, view: LegacyAssistant },
+    { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
     { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
   ],
   transport: [
@@ -33,7 +36,7 @@ const SECTIONS = {
     { key: 'reseau', label: 'Réseau à risque', icon: Map, view: Network },
     { key: 'lignes', label: 'Lignes & flotte', icon: Route, view: Fleet },
     { key: 'affectations', label: 'Affectations', icon: ClipboardList, view: Assignments },
-    { key: 'assistant', label: 'Assistant', icon: BookOpen, view: LegacyAssistant },
+    { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
     { key: 'comptes', label: 'Comptes', icon: Users, view: LegacyAccounts },
   ],
 };

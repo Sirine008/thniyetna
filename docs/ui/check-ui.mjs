@@ -18,6 +18,9 @@ const env = fs.readFileSync(path.join(ROOT, '.env'), 'utf8');
 const BOOT = (env.match(/^BOOTSTRAP_PASSWORD=(.*)$/m) || [])[1]?.trim().replace(/^["']|["']$/g, '');
 const SHEET = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'sheet.json');
 const sheet = fs.existsSync(SHEET) ? JSON.parse(fs.readFileSync(SHEET, 'utf8')) : null;
+// one real /assistant/ask answer recorded by record-ask.mjs (replayed: the LLM takes 30-90 s per answer)
+const ASK_FILE = path.join(path.dirname(SHEET), 'ask.json');
+const ask = fs.existsSync(ASK_FILE) ? JSON.parse(fs.readFileSync(ASK_FILE, 'utf8')) : null;
 export const USERS = { citizen: 'demo.citizen1', driver: 'demo.driver2', equipment: 'equipment.supervisor', transport: 'transport.supervisor', inspection: 'demo.inspection' };
 const password = user => demo[user]?.password ?? BOOT;
 
@@ -97,7 +100,7 @@ const apiAs = async (role, p) => {
   const r = await fetch(`${BASE}/api${p}`, { headers: { Authorization: `Bearer ${s.access_token}` } });
   return r.json();
 };
-await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) }, lib, apiAs, SHEET: sheet, OUT_DIR: OUT, fs });
+await groups.default({ scenario, check, focusVisible, BASE, USERS, PASSWORDS: { citizen: password(USERS.citizen) }, lib, apiAs, SHEET: sheet, OUT_DIR: OUT, fs, ASK: ask });
 await browser.close();
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${failed.length ? ` — FAILED: ${failed.map(f => f.name).join(' | ')}` : ''}`);

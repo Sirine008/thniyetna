@@ -68,3 +68,18 @@
   .sheet-table thead { display: table-header-group; }
   .sheet-section, .source-item, tr { break-inside: avoid; }
 }
+
+/* ---------- assistant (chat) ---------- */
+.chat-log { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); max-block-size: calc(100vh - 360px); min-block-size: 220px; overflow-y: auto; }
+.chat-exchange { display: flex; flex-direction: column; gap: var(--sp-3); }
+.chat-exchange + .chat-exchange { border-block-start: var(--border); padding-block-start: var(--sp-4); }
+.chat-who { display: block; font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .05em; color: var(--c-text-muted); margin-block-end: var(--sp-1); }
+.chat-question { align-self: flex-end; max-inline-size: min(80%, 640px); background: var(--c-gray-50); border: var(--border); border-radius: var(--radius-md); padding: var(--sp-3) var(--sp-4); }
+.chat-question p { font-weight: var(--fw-medium); }
+.chat-answer { display: flex; flex-direction: column; gap: var(--sp-3); max-inline-size: 880px; }
+.chat-sources summary { cursor: pointer; color: var(--c-primary); font-size: var(--fs-sm); font-weight: var(--fw-medium); min-block-size: 32px; display: flex; align-items: center; }
+.chat-sources[open] summary { margin-block-end: var(--sp-2); }
+.chat-meta { font-size: var(--fs-xs); color: var(--c-text-subtle); }
+.chat-composer { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-block-start: var(--border); background: var(--c-gray-25); }
+.chat-composer .textarea { min-block-size: 64px; }
+@media (max-width: 720px) { .chat-log { max-block-size: none; } .chat-question { max-inline-size: 100%; } }
