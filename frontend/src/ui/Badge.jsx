@@ -4,7 +4,7 @@ import {
   Inbox, RefreshCw, Route, Search, SignalHigh, SignalLow, SignalMedium, TriangleAlert, FlaskConical,
 } from 'lucide-react';
 import { DEMO_LABEL } from '../lib/constants';
-import { alertTopicLabel, eventStateLabel, priorityLabel, reportStateLabel, riskLabel } from '../lib/labels';
+import { eventStateLabel, priorityLabel, reportStateLabel, riskLabel } from '../lib/labels';
 
 // Colour is never alone: every badge has a text label and an icon whose shape differs per value.
 export function Badge({ tone = 'neutral', icon: Icon, children, title, className = '' }) {

@@ -22,7 +22,8 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
   python-jose... = the API's) come from `requirements-dev.txt`, installed once in the M2 venv:
   `ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`. Expected: 0 skips except M1's `cv2` test
   (OpenCV only exists in the perception worker image). Do not use a bare `pytest` from PATH (another Python without
-  the API packages). Frontend: `npm test` in `frontend/` (node --test, `src/lib/routeState.js`) and `npm run build`.
+  the API packages). Frontend: `npm test` in `frontend/` (node --test over `src/lib/*.test.js`) and `npm run build`; UI checks
+  `docs/ui/check-ui.mjs` + `check-citizen.mjs` (headless Edge, read-only, see `docs/ui/README.md`).
 - Never invent metrics or results. Report numbers only from files the pipeline wrote
   (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, the model card).
 - Model card: `train` / `ablation` regenerate it at `reports/m2/MODEL_CARD.md` (+ `models/m2/model_card.json`).
@@ -106,7 +107,7 @@ history carries the signal · trees do not beat logistic regression · accident 
   ⇅ swaps. Rules in `frontend/src/lib/trip.js` (tested by `npm test`): out-of-zone messages, « Le départ et l’arrivée
   sont identiques » under 50 m, shareable URL `?from=lat,lon&to=lat,lon` (kept through the login redirect). The route
   is checked automatically once both are set (button « Vérifier le trajet » re-runs it). M3 logic unchanged.
-- UI check: `docs/ui/check-citizen.mjs` (headless Edge, 28 checks, screenshots in `docs/ui/`, see its README).
+- UI check: `docs/ui/check-citizen.mjs` (headless Edge, 28 checks, see `docs/ui/README.md`).
 - Table `places` (Alembic `0007_places_index`, extension `pg_trgm`): name (name:fr preferred), name_ar, name_norm
   (normalised search key of every name variant), category, rank, locality (nearest town / village), point geom.
   Normalisation (`backend/routing/places_index.py`, shared by the API and the script): case, accents, punctuation,
@@ -126,6 +127,14 @@ history carries the signal · trees do not beat logistic regression · accident 
   « Danger sur l’itinéraire — aucune alternative sûre » (red) with each hazard (type in French, distance from the start
   = `hazards[].distance_from_start_m`, risk). Never « vérifié » when `fastest_risk` >= 0.42.
 - Tests: `tests/test_routing_places.py`, `tests/test_routing_event_reroute.py` (warning card data), `npm test`.
+
+## UI (redesign of 24/10/2026, branch ui-redesign)
+- Design system: `frontend/src/styles/tokens.css`, components in `frontend/src/ui/`, French labels in `src/lib/labels.js`
+  (use it for any new technical value), formats in `src/lib/format.js` (dates always Africa/Tunis), reference page `/design`.
+- Rules: petrol accent only; green / yellow / orange / red only for risk, priority and states, always with text or an
+  icon; Lucide icons, no emoji; radius 4–6 px; logical CSS properties; never show a number that does not come from the API.
+- Supervisor screens: `src/pages/Ministry.jsx` (section in `?vue=`) + `src/pages/ministry/*`; data and actions in
+  `ministry/useWorkspace.js` (one load for the workspace, reload after each action).
 
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
