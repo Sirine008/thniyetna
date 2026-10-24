@@ -545,4 +545,21 @@ export default async function scenarios({ scenario, check, focusVisible, BASE, U
     }
   }
 
+  // ------------------------------------------------------------ driver « J'ai pris connaissance »
+  {
+    const alertsRef = await apiAs('driver', '/platform/alerts');
+    const ackable = alertsRef.filter(a => ['driver.reroute.alert', 'driver.route.warning'].includes(a.topic) && a.status === 'pending' && !a.payload?.superseded);
+    await scenario('driver-ack', 'driver', async (page, { view, calls }) => {
+      await page.goto(`${BASE}/driver/alerts`);
+      await page.waitForSelector('.alert-feed, .empty-state');
+      const buttons = page.getByRole('button', { name: 'J’ai pris connaissance' });
+      check(`driver ack ${view}: one button per active driver alert`, (await buttons.count()) === ackable.length, `${ackable.length}`);
+      if (ackable.length) {
+        await buttons.first().click(); await page.waitForTimeout(800);
+        const ack = calls.find(c => c.method === 'POST' && c.path.endsWith('/ack'));
+        check(`driver ack ${view}: same request (POST /platform/alerts/{id}/ack)`, ack && ack.path === `/platform/alerts/${ackable[0].id}/ack`, ack?.path);
+      }
+    }, { views: ['mobile'], replies: { '/ack$': () => ({ status: 'acknowledged' }) } });
+  }
+
 }

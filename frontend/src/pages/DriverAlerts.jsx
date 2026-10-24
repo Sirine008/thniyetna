@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 import { api } from '../lib/api';
 import { hazardLabel } from '../lib/constants';
 import { dateTime, distance, pct, plural, time } from '../lib/format';
 import { alertTopicLabel, apiErrorMessage } from '../lib/labels';
-import { AlertBadge, ConfirmedBadge, EmptyState, Loading, Notice } from '../ui';
+import { AlertBadge, Badge, Button, ConfirmedBadge, EmptyState, Loading, Notice, useToast } from '../ui';
+
+const DRIVER_TOPICS = ['driver.reroute.alert', 'driver.route.warning'];
 
 function alertTitle(item) {
   if (item.topic === 'driver.reroute.alert') return 'Nouvel itinéraire recommandé';
@@ -15,7 +18,16 @@ function alertTitle(item) {
 export default function DriverAlerts() {
   const [alerts, setAlerts] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.alerts().then(setAlerts).catch(err => { setAlerts([]); setError(apiErrorMessage(err.message)); }); }, []);
+  const [acking, setAcking] = useState('');
+  const toast = useToast();
+  const load = () => api.alerts().then(setAlerts).catch(err => { setAlerts([]); setError(apiErrorMessage(err.message)); });
+  useEffect(() => { load(); }, []);
+  // « J'ai pris connaissance »: POST /platform/alerts/{id}/ack (status pending -> delivered: the alert is no longer active)
+  async function acknowledge(item) {
+    setAcking(item.id); setError('');
+    try { await api.ackAlert(item.id); toast.push('Alerte prise en compte.'); await load(); }
+    catch (err) { setError(apiErrorMessage(err.message)); } finally { setAcking(''); }
+  }
   return <div className="m-shell">
     <a className="skip-link" href="#contenu">Aller au contenu</a>
     <header className="m-header"><span className="wordmark">THNIYETNA</span><span className="t-sm t-muted">Conducteur SRTB</span></header>
@@ -33,6 +45,9 @@ export default function DriverAlerts() {
           {p.superseded && <p className="t-sm t-muted">{p.superseded_note || 'Remplacée'}</p>}
           {p.confirmations > 1 && p.last_confirmed_at && <p className="t-sm t-muted">Dernière vérification à {time(p.last_confirmed_at)}</p>}
           <p>{p.reason || 'Mise à jour du réseau routier.'}</p>
+          {DRIVER_TOPICS.includes(item.topic) && !p.superseded && (item.status === 'pending'
+            ? <div><Button variant="primary" icon={Check} loading={acking === item.id} onClick={() => acknowledge(item)}>J’ai pris connaissance</Button></div>
+            : <div><Badge tone="neutral" icon={Check}>Prise en compte</Badge></div>)}
           {item.topic === 'driver.route.warning' && p.hazards?.length > 0 && <ul className="alert-hazards-list">{p.hazards.map((h, i) =>
             <li key={i}>{hazardLabel(h.type)} · risque {pct(h.risk)} · à {distance(h.distance_m)} du trajet</li>)}</ul>}
           <p className="t-xs t-muted">{dateTime(item.created_at)}</p>
