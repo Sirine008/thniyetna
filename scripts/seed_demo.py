@@ -15,6 +15,7 @@ Demo rows are identifiable:
   perception_jobs      options.demo = true
   road_observations    metadata.demo = true
   complaint_status_history   belongs to a demo complaint
+  agent_actions        equipment agent proposals on demo data (proposal.demo, a demo event, a demo complaint planned)
 The API exposes `demo` and the UI shows "DÉMO — données fictives". M2 training ignores demo events
 (ml/prediction/condition_model.py, TRAINING_EVENTS_SQL / drop_demo).
 
@@ -215,6 +216,13 @@ def demo_ids(cx) -> dict[str, list]:
            OR (o.topic = 'complaint.created' AND o.payload->>'id' = ANY(%s))
            OR (o.topic IN ('road.event.created','road.event.validated') AND o.payload->>'id' = ANY(%s))""",
                                      ids["perception_jobs"], ids["complaints"], ids["complaints"], ids["road_events"])
+    # Equipment agent proposals / executions on demo data (Alembic 0008; absent on an older database).
+    ids["agent_actions"] = []
+    if cx.execute("SELECT to_regclass('agent_actions') IS NOT NULL").fetchone()[0]:
+        ids["agent_actions"] = one("""SELECT id::text FROM agent_actions
+            WHERE coalesce((proposal->>'demo')::boolean,false) OR arguments->>'event_id' = ANY(%s)
+               OR coalesce(result->'planned_complaints','[]'::jsonb) ?| %s::text[]""",
+                                   ids["road_events"], ids["complaints"])
     return ids
 
 
@@ -621,7 +629,7 @@ def reset(cx, args):
     if not args.yes and input("Type 'yes' to delete these demo rows: ").strip().lower() != "yes":
         say("Cancelled, nothing deleted.")
         return
-    order = [("notification_outbox", "id", "uuid"), ("complaint_status_history", "id", "uuid"),
+    order = [("agent_actions", "id", "uuid"), ("notification_outbox", "id", "uuid"), ("complaint_status_history", "id", "uuid"),
              ("road_observations", "id", "uuid"), ("road_events", "id", "uuid"),
              ("perception_jobs", "id", "uuid"), ("complaints", "id", "uuid"),
              ("route_assignments", "id", "uuid"), ("official_routes", "id", "uuid"),

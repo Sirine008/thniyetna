@@ -36,6 +36,28 @@ export const JOB_STATES = { queued: 'En attente', running: 'Analyse en cours', c
 export const jobStateLabel = lookup(JOB_STATES);
 export const GPS_SOURCES = { gpx: 'Fichier GPX', session: 'Positions GPS de la session', none: 'Aucune (non localisé)' };
 export const gpsSourceLabel = lookup(GPS_SOURCES);
+// Equipment agent (POST /assistant/agent): read-only tools chosen by the model.
+export const AGENT_TOOLS = {
+  list_priority_segments: 'Segments prioritaires (M2)',
+  get_segment_facts: 'Faits enregistrés sur un segment',
+  get_intervention_sheet: 'Fiche d’intervention (données)',
+  search_guides: 'Recherche dans les guides',
+  get_equipment_dashboard: 'Tableau de bord Équipement',
+  // Action tools: they only PROPOSE; the supervisor confirms (POST /assistant/agent/actions/{id}/confirm).
+  plan_intervention: 'Planifier une intervention',
+  notify_transport: 'Prévenir le superviseur Transport',
+  generate_full_sheet: 'Générer la fiche complète',
+  propose_validation: 'Valider une détection',
+};
+export const AGENT_ACTION_STATES = { proposed: 'À confirmer', confirmed: 'Exécutée', rejected: 'Ignorée', expired: 'Expirée', failed: 'Échec' };
+export const agentActionStateLabel = lookup(AGENT_ACTION_STATES);
+// Tool set given to the model (backend/agent/tools.py tools_for): actions only when the question asks for one.
+export const AGENT_TOOL_SETS = { lecture: 'outils de lecture', actions: 'outils de lecture et d’action' };
+export const agentToolSetLabel = lookup(AGENT_TOOL_SETS);
+export const agentToolLabel = lookup(AGENT_TOOLS);
+export const AGENT_ARGS = { limit: 'nombre', min_priority: 'priorité minimale', segment_code: 'segment', question: 'question',
+  note: 'note', message: 'message', event_id: 'détection' };
+export const agentArgLabel = lookup(AGENT_ARGS);
 
 // Notifications (notification_outbox.topic)
 export const ALERT_TOPICS = {
@@ -48,6 +70,7 @@ export const ALERT_TOPICS = {
   'road.event.created': 'Nouvelle détection routière',
   'road.event.validated': 'Détection validée',
   'risk.batch_updated': 'Scores de risque M2 mis à jour',
+  'equipment.segment.notice': 'Message de l’Équipement sur un segment',
   'risk.updated': 'Score de risque mis à jour',
   'staff.account.created': 'Compte créé',
   'perception.job.queued': 'Analyse d’image en attente',

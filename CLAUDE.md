@@ -202,3 +202,41 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Live check 2026-10-15 (equipment.supervisor, OSM-100663969, P3, no defect): the sheet is correct, but its advice
   had no [n] (now flagged). `/ask` "température minimale enrobé chaud" answered "0 °C" (wrong, same failure as eval
   q12; the guides say > 10 °C) — the excerpts and the notice are there so users can catch it.
+
+## Equipment agent (since 2026-11-07, see docs/AGENT.md)
+- `POST /assistant/agent` (equipment_supervisor only), tab « Agent » of the Équipement ministry
+  (`frontend/src/components/Agent.jsx`). `backend/agent/`: `tools.py` (5 read-only tools reusing existing code:
+  `list_priority_segments` = `platform_app.router.LATEST_SCORE_LATERAL`, never `/prediction/segments` which writes
+  fallback rows; `get_segment_facts` / `get_intervention_sheet` = `rag.intervention` without LLM; `search_guides` =
+  `retrieve_scored`; `get_equipment_dashboard` = `equipment_dashboard()`), `loop.py` (`MAX_ROUNDS = 3`, temperature 0,
+  validation → error sent back to the model, `TIME_BUDGET_S = 150`, then one final call without tools; citations
+  numbered globally per run), `router.py`. Ollama client: `rag.ollama.chat_with_tools()` (stdlib). No tool writes;
+  only the `rag_queries` log line. The model reads compact priority rows (`tools.model_view`); the UI gets full rows.
+- Never fake a tool call: an answer without tools is kept and flagged (`warnings`); numbers of the answer missing from
+  the tool results are listed in `warnings`; the raw tool results and per-call timings (`calls`) go to the UI.
+  Demo rows keep `demo: true`. Never put a real segment code as an example in a tool description (the 3B model copies it).
+- nginx: `location = /api/assistant/agent` with `proxy_read_timeout 600s` (bound 150 + 2 × 180 = 510 s);
+  the `/api/assistant/` prefix stays at 300 s.
+- Measured 07/11 (`data/agent/eval/results.json`, 8 tasks): first tool correct 0.875, expected tools called
+  successfully 0.75, 3 invented segment codes, always 1 tool round, median 40.8 s. A prompt rule against invented codes
+  was tried and removed (`results_rule6.json`: no fewer invented codes, broke the dashboard question).
+  Re-run: `cd backend; ..\ml\.venv\Scripts\python.exe -m agent.evaluate` (`--ids`, `--out`). Report only numbers
+  from these files.
+- Actions with a human in the loop (since 2026-11-07, `backend/agent/actions.py`, Alembic `0008_agent_actions`):
+  `plan_intervention`, `notify_transport`, `generate_full_sheet`, `propose_validation` only PROPOSE during the loop
+  (one `agent_actions` INSERT, never a business table). `POST /assistant/agent/actions/{id}/confirm` (equipment_supervisor)
+  claims atomically (proposed → confirmed, committed before execution), then runs the existing code as the logged-in
+  user (`update_complaint`, `publish(..., "transport_supervisor")`, `intervention_sheet`, `validate_event`); second
+  confirm 409, older than 30 min 410, `…/reject` 200 and never runs. Never add an auto-executing path: the 3B model
+  invents codes and described a proposed sheet as done (live 07/11); the response always warns that nothing ran.
+- Expiry on read: `GET /assistant/agent/actions?ids=` marks proposals older than 30 min `expired` (no job); the Agent tab
+  calls it on opening. `plan_intervention` = `platform_app.router.apply_complaint_status()` per complaint (no commit),
+  ONE commit for all (all or nothing). Demo: proposals / notices carry `demo` when the segment has open demo data;
+  `seed_demo.py --reset` deletes `agent_actions` linked to demo data. Live tests of write actions: demo rows only
+  (07/11: OSM-713546524 complaint, L1 detection 2863ed7f…; L1's segment has no complaint within 100 m). Transport home:
+  card « Alertes de l'Équipement » (`pages/ministry/EquipmentNotices.jsx`, topic `equipment.segment.notice`).
+- Agent eval with 9 tools / 11 tasks (`results.json`, 07/11 13:54): first tool 0.909, expected tools ok 0.727,
+  action tasks right target 3/3 but 1/3 claims « déjà fait »; 5-tool run kept as `results_5tools.json`.
+- Tests: `tests/test_agent_actions.py`. `perception` exists twice (backend API package and `ml/perception`); a test that
+  imports `perception.router` must use the `backend_perception` fixture there. `pytest tests ml` (reverse order) already
+  failed to collect before this work; use the pytest command of « Rules ».

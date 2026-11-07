@@ -126,6 +126,13 @@ export const api = {
   assistantStatus: () => request('/assistant/status', { auth: true }),
   ask: question => request('/assistant/ask', { auth: true, method: 'POST', body: { question } }),
   interventionSheet: segmentCode => request(`/assistant/intervention/${encodeURIComponent(segmentCode)}`, { auth: true, method: 'POST' }),
+  // Equipment agent: several model rounds with read-only tools (often 1–3 min on the CPU)
+  agent: question => request('/assistant/agent', { auth: true, method: 'POST', body: { question } }),
+  // Agent proposals: nothing runs until the supervisor confirms (one confirmation = one execution)
+  confirmAgentAction: id => request(`/assistant/agent/actions/${encodeURIComponent(id)}/confirm`, { auth: true, method: 'POST' }),
+  rejectAgentAction: id => request(`/assistant/agent/actions/${encodeURIComponent(id)}/reject`, { auth: true, method: 'POST' }),
+  // Current state of proposals; reading marks those older than 30 min as expired
+  agentActions: ids => request(`/assistant/agent/actions?ids=${encodeURIComponent(ids.join(','))}`, { auth: true }),
   // Staff accounts of the supervisor's ministry
   staffList: () => request('/auth/staff', { auth: true }),
   createStaff: body => request('/auth/staff', { auth: true, method: 'POST', body }),

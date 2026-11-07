@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defectLabel, defectTitle, reportStateLabel, alertTopicLabel, roleLabel, roadClassLabel, riskLabel,
-  priorityLabel, factorName, factorPhrase, factorEffect, REPORT_TARGET_STATES, REPORT_STATES, apiErrorMessage } from './labels.js';
+  priorityLabel, factorName, factorPhrase, factorEffect, REPORT_TARGET_STATES, REPORT_STATES, apiErrorMessage,
+  AGENT_TOOLS, agentToolLabel, agentArgLabel, AGENT_ACTION_STATES, agentActionStateLabel, agentToolSetLabel } from './labels.js';
 import { mainFactor } from './risk.js';
 import { hazardLabel } from './constants.js';
 
@@ -49,4 +50,17 @@ test('known API errors in French, others unchanged', () => {
   assert.equal(apiErrorMessage('Failed to fetch'), 'Serveur injoignable. Vérifiez la connexion et réessayez.');
   assert.equal(apiErrorMessage('Destination hors de la zone couverte (gouvernorat de Bizerte)'), 'Destination hors de la zone couverte (gouvernorat de Bizerte)');
   assert.equal(apiErrorMessage(''), 'Une erreur est survenue.');
+});
+test('agent tools and arguments in French', () => {
+  // Same names as backend/agent/tools.py TOOLS.
+  assert.deepEqual(Object.keys(AGENT_TOOLS), ['list_priority_segments', 'get_segment_facts', 'get_intervention_sheet', 'search_guides', 'get_equipment_dashboard',
+    'plan_intervention', 'notify_transport', 'generate_full_sheet', 'propose_validation']);
+  // Same states as the agent_actions.status CHECK (Alembic 0008).
+  assert.deepEqual(Object.keys(AGENT_ACTION_STATES), ['proposed', 'confirmed', 'rejected', 'expired', 'failed']);
+  assert.equal(agentActionStateLabel('confirmed'), 'Exécutée');
+  assert.equal(agentToolSetLabel('lecture'), 'outils de lecture');
+  assert.equal(alertTopicLabel('equipment.segment.notice'), 'Message de l’Équipement sur un segment');
+  assert.equal(agentToolLabel('search_guides'), 'Recherche dans les guides');
+  assert.equal(agentToolLabel('delete_segment'), 'delete segment'); // unknown tool from the model: readable, never hidden
+  assert.equal(agentArgLabel('min_priority'), 'priorité minimale');
 });

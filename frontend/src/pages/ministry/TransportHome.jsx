@@ -5,6 +5,7 @@ import { date, dateTime, pct } from '../../lib/format';
 import { riskLevel } from '../../lib/risk';
 import { dayForecasts, exposureTop, nextForecastDay, riskySegments } from '../../lib/segments';
 import { Badge, Card, EmptyState, KpiTile, RiskBadge, SkeletonRows } from '../../ui';
+import EquipmentNotices from './EquipmentNotices';
 
 const link = (vue, extra = {}) => `/ministry/transport?${new URLSearchParams({ vue, ...extra })}`;
 
@@ -36,6 +37,7 @@ export default function TransportHome({ w }) {
           <RiskBadge level={riskLevel(s)}/></Link></li>)}</ul> : <EmptyState title="Aucun segment sous surveillance."/>}
       </Card>
     </div>
+    <EquipmentNotices/>
     <Card title="Dernières affectations" actions={<Link to={link('affectations')} className="t-sm">Toutes les affectations</Link>} bodyClass={null}>
       {latest.length ? <ul className="short-list">{latest.map(a => <li key={a.assignment_id}><div className="short-link">
         <span className="short-main"><span className="cell-title">{a.route_name}</span><span className="cell-sub">{a.vehicle_code} · {a.driver_username || 'sans conducteur'}</span></span>

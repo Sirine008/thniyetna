@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Bell, BookOpen, ClipboardList, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
+import { Bell, BookOpen, Bot, ClipboardList, Gauge, Inbox, Map, RefreshCw, Route, ScanSearch, Truck, Users, Wrench } from 'lucide-react';
 import InterventionSheet from '../components/InterventionSheet';
 import SupervisorLayout from '../layouts/SupervisorLayout';
 import { getSession } from '../lib/auth';
 import { Button, Notice, useToast } from '../ui';
 import { sessionUsername, useWorkspace } from './ministry/useWorkspace';
 import Accounts from './ministry/Accounts';
+import Agent from '../components/Agent';
 import Assistant from '../components/Assistant';
 import Assignments from './ministry/Assignments';
 import DriverAlertsBoard from './ministry/DriverAlertsBoard';
@@ -20,6 +21,7 @@ import Priorities from './ministry/Priorities';
 import Reports from './ministry/Reports';
 
 const AssistantView = ({ w }) => <Assistant ministry={w.ministry}/>;
+const AgentView = ({ onSheet }) => <Agent onSheet={onSheet}/>;
 
 // Sections of each ministry: URL `?vue=<key>` (so KPI tiles and links can open a filtered list).
 const SECTIONS = {
@@ -30,6 +32,7 @@ const SECTIONS = {
     { key: 'priorites', label: 'Priorités d’entretien', icon: Wrench, view: Priorities },
     { key: 'inspections', label: 'Inspections', icon: Truck, view: Inspections },
     { key: 'assistant', label: 'Assistant', icon: BookOpen, view: AssistantView },
+    { key: 'agent', label: 'Agent', icon: Bot, view: AgentView },
     { key: 'comptes', label: 'Comptes', icon: Users, view: Accounts },
   ],
   transport: [
