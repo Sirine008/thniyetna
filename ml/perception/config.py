@@ -16,7 +16,13 @@ class Settings:
     imgsz: int = int(os.getenv("M1_IMGSZ", "640"))
     confidence: float = float(os.getenv("M1_CONF", "0.25"))
     iou: float = float(os.getenv("M1_IOU", "0.50"))
-    video_fps: float = float(os.getenv("M1_VIDEO_FPS", "5"))
+    video_fps: float = float(os.getenv("M1_VIDEO_FPS", "3"))
+    # video GPS: seconds added to the GPX / session start time (+ = video started after the first GPS point);
+    # frames further than gps_max_gap_s outside the track (or in a GPS outage) are unlocated
+    gps_offset_s: float = float(os.getenv("M1_GPS_OFFSET_S", "0"))
+    gps_max_gap_s: float = float(os.getenv("M1_GPS_MAX_GAP_S", "10"))
+    tracker: str = os.getenv("M1_TRACKER", "bytetrack.yaml")
+    media_public_prefix: str = os.getenv("MEDIA_PUBLIC_PREFIX", "/media/files").rstrip("/")
     batch_size: int = int(os.getenv("M1_BATCH_SIZE", "8"))
     dedup_radius_m: float = float(os.getenv("M1_DEDUP_RADIUS_M", "20"))
     dedup_days: int = int(os.getenv("M1_DEDUP_DAYS", "14"))

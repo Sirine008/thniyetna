@@ -22,7 +22,8 @@ M3 routing, M4 platform, M5 foundation. Contract chain:
   python-jose... = the API's) come from `requirements-dev.txt`, installed once in the M2 venv:
   `ml\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`. Expected: 0 skips except M1's `cv2` test
   (OpenCV only exists in the perception worker image). Do not use a bare `pytest` from PATH (another Python without
-  the API packages). Frontend: `npm test` in `frontend/` (node --test, `src/lib/routeState.js`) and `npm run build`.
+  the API packages). Frontend: `npm test` in `frontend/` (node --test over `src/lib/*.test.js`) and `npm run build`; UI checks
+  `docs/ui/check-ui.mjs` + `check-citizen.mjs` (headless Edge, read-only, see `docs/ui/README.md`).
 - Never invent metrics or results. Report numbers only from files the pipeline wrote
   (`reports/m2/training_report.json`, `reports/m2/ablation.csv`, the model card).
 - Model card: `train` / `ablation` regenerate it at `reports/m2/MODEL_CARD.md` (+ `models/m2/model_card.json`).
@@ -80,6 +81,15 @@ history carries the signal · trees do not beat logistic regression · accident 
   worker image (`perception.pilot`, `perception.benchmark --source`), not in `ml/.venv` (no torch there).
 - Pilot photos `data/m1/pilot/` and outputs `data/m1/pilot_out/` are gitignored; never commit them.
 - Known: potholes in close-up citizen photos are missed (0/7 on the pilot). Do not claim local accuracy.
+- Inspection video (since 2026-10-24): screen `/inspection` (role inspection_vehicle) or `scripts/demo_video.py`
+  (DÉMO, via the API). Frames at `M1_VIDEO_FPS` (default 3; `.env` sets 5), ByteTrack, one defect per track with its
+  best frame saved under `frames/`; GPS from a GPX in the job options (`gpx`, `gps_offset_s`, `video_started_at`) or
+  the session heartbeats; no GPS → observations only, no road event. Job result = duration, frames, processing time,
+  detections before / after tracking, GPS source. Test video + GPX in `data/m1/video_sample/` (gitignored).
+  To process a video:
+  1. `ml\.venv\Scripts\python.exe -X utf8 scripts/make_demo_gpx.py --seconds <≥ video length> --out data/m1/video_sample/x.gpx` (synthetic DÉMO track) or use a real GPX;
+  2. `ml\.venv\Scripts\python.exe -X utf8 scripts/demo_video.py --video <file> --gpx <file.gpx> [--offset s]`
+     (the perception worker must run: `--profile m1`; AV1 is not decodable on CPU → use H.264 or VP9).
 
 ## Demo data (scripts/seed_demo.py)
 - Needs the stack with `--profile m2 --profile m1` (perception-worker) and photos in `data/m1/pilot/`. Run from the repo
@@ -97,6 +107,9 @@ history carries the signal · trees do not beat logistic regression · accident 
   `demo` and the UI shows "DÉMO — données fictives". M2 training excludes them (`condition_model.TRAINING_EVENTS_SQL`,
   `drop_demo`, test `test_demo_events_are_excluded_from_condition_training`).
 - Passwords: `data/demo/demo_accounts.json` (gitignored); never print or commit them.
+  - The supervisors' « Réinitialiser le mot de passe » changes a demo account's password in the DB without touching
+    that file (24/10: demo.driver1 no longer matched it). Fix: `POST /auth/staff/<username>/password` as
+    transport.supervisor with the password from the file (demo rows only), then log in again to check.
 
 ## M3 destination search (place index, since 2026-10-23)
 - Citizen page « Carte des incidents · Bizerte » (`frontend/src/pages/Citizen.jsx`): two identical fields « Départ » (A)
@@ -106,7 +119,7 @@ history carries the signal · trees do not beat logistic regression · accident 
   ⇅ swaps. Rules in `frontend/src/lib/trip.js` (tested by `npm test`): out-of-zone messages, « Le départ et l’arrivée
   sont identiques » under 50 m, shareable URL `?from=lat,lon&to=lat,lon` (kept through the login redirect). The route
   is checked automatically once both are set (button « Vérifier le trajet » re-runs it). M3 logic unchanged.
-- UI check: `docs/ui/check-citizen.mjs` (headless Edge, 28 checks, screenshots in `docs/ui/`, see its README).
+- UI check: `docs/ui/check-citizen.mjs` (headless Edge, 28 checks, see `docs/ui/README.md`).
 - Table `places` (Alembic `0007_places_index`, extension `pg_trgm`): name (name:fr preferred), name_ar, name_norm
   (normalised search key of every name variant), category, rank, locality (nearest town / village), point geom.
   Normalisation (`backend/routing/places_index.py`, shared by the API and the script): case, accents, punctuation,
@@ -126,6 +139,14 @@ history carries the signal · trees do not beat logistic regression · accident 
   « Danger sur l’itinéraire — aucune alternative sûre » (red) with each hazard (type in French, distance from the start
   = `hazards[].distance_from_start_m`, risk). Never « vérifié » when `fastest_risk` >= 0.42.
 - Tests: `tests/test_routing_places.py`, `tests/test_routing_event_reroute.py` (warning card data), `npm test`.
+
+## UI (redesign of 24/10/2026, branch ui-redesign)
+- Design system: `frontend/src/styles/tokens.css`, components in `frontend/src/ui/`, French labels in `src/lib/labels.js`
+  (use it for any new technical value), formats in `src/lib/format.js` (dates always Africa/Tunis), reference page `/design`.
+- Rules: petrol accent only; green / yellow / orange / red only for risk, priority and states, always with text or an
+  icon; Lucide icons, no emoji; radius 4–6 px; logical CSS properties; never show a number that does not come from the API.
+- Supervisor screens: `src/pages/Ministry.jsx` (section in `?vue=`) + `src/pages/ministry/*`; data and actions in
+  `ministry/useWorkspace.js` (one load for the workspace, reload after each action).
 
 ## RAG assistant (part A)
 - **Audience = field users** (equipment / transport supervisors); developer docs are not indexed. `rag.ingest`
@@ -181,3 +202,41 @@ history carries the signal · trees do not beat logistic regression · accident 
 - Live check 2026-10-15 (equipment.supervisor, OSM-100663969, P3, no defect): the sheet is correct, but its advice
   had no [n] (now flagged). `/ask` "température minimale enrobé chaud" answered "0 °C" (wrong, same failure as eval
   q12; the guides say > 10 °C) — the excerpts and the notice are there so users can catch it.
+
+## Equipment agent (since 2026-11-07, see docs/AGENT.md)
+- `POST /assistant/agent` (equipment_supervisor only), tab « Agent » of the Équipement ministry
+  (`frontend/src/components/Agent.jsx`). `backend/agent/`: `tools.py` (5 read-only tools reusing existing code:
+  `list_priority_segments` = `platform_app.router.LATEST_SCORE_LATERAL`, never `/prediction/segments` which writes
+  fallback rows; `get_segment_facts` / `get_intervention_sheet` = `rag.intervention` without LLM; `search_guides` =
+  `retrieve_scored`; `get_equipment_dashboard` = `equipment_dashboard()`), `loop.py` (`MAX_ROUNDS = 3`, temperature 0,
+  validation → error sent back to the model, `TIME_BUDGET_S = 150`, then one final call without tools; citations
+  numbered globally per run), `router.py`. Ollama client: `rag.ollama.chat_with_tools()` (stdlib). No tool writes;
+  only the `rag_queries` log line. The model reads compact priority rows (`tools.model_view`); the UI gets full rows.
+- Never fake a tool call: an answer without tools is kept and flagged (`warnings`); numbers of the answer missing from
+  the tool results are listed in `warnings`; the raw tool results and per-call timings (`calls`) go to the UI.
+  Demo rows keep `demo: true`. Never put a real segment code as an example in a tool description (the 3B model copies it).
+- nginx: `location = /api/assistant/agent` with `proxy_read_timeout 600s` (bound 150 + 2 × 180 = 510 s);
+  the `/api/assistant/` prefix stays at 300 s.
+- Measured 07/11 (`data/agent/eval/results.json`, 8 tasks): first tool correct 0.875, expected tools called
+  successfully 0.75, 3 invented segment codes, always 1 tool round, median 40.8 s. A prompt rule against invented codes
+  was tried and removed (`results_rule6.json`: no fewer invented codes, broke the dashboard question).
+  Re-run: `cd backend; ..\ml\.venv\Scripts\python.exe -m agent.evaluate` (`--ids`, `--out`). Report only numbers
+  from these files.
+- Actions with a human in the loop (since 2026-11-07, `backend/agent/actions.py`, Alembic `0008_agent_actions`):
+  `plan_intervention`, `notify_transport`, `generate_full_sheet`, `propose_validation` only PROPOSE during the loop
+  (one `agent_actions` INSERT, never a business table). `POST /assistant/agent/actions/{id}/confirm` (equipment_supervisor)
+  claims atomically (proposed → confirmed, committed before execution), then runs the existing code as the logged-in
+  user (`update_complaint`, `publish(..., "transport_supervisor")`, `intervention_sheet`, `validate_event`); second
+  confirm 409, older than 30 min 410, `…/reject` 200 and never runs. Never add an auto-executing path: the 3B model
+  invents codes and described a proposed sheet as done (live 07/11); the response always warns that nothing ran.
+- Expiry on read: `GET /assistant/agent/actions?ids=` marks proposals older than 30 min `expired` (no job); the Agent tab
+  calls it on opening. `plan_intervention` = `platform_app.router.apply_complaint_status()` per complaint (no commit),
+  ONE commit for all (all or nothing). Demo: proposals / notices carry `demo` when the segment has open demo data;
+  `seed_demo.py --reset` deletes `agent_actions` linked to demo data. Live tests of write actions: demo rows only
+  (07/11: OSM-713546524 complaint, L1 detection 2863ed7f…; L1's segment has no complaint within 100 m). Transport home:
+  card « Alertes de l'Équipement » (`pages/ministry/EquipmentNotices.jsx`, topic `equipment.segment.notice`).
+- Agent eval with 9 tools / 11 tasks (`results.json`, 07/11 13:54): first tool 0.909, expected tools ok 0.727,
+  action tasks right target 3/3 but 1/3 claims « déjà fait »; 5-tool run kept as `results_5tools.json`.
+- Tests: `tests/test_agent_actions.py`. `perception` exists twice (backend API package and `ml/perception`); a test that
+  imports `perception.router` must use the `backend_perception` fixture there. `pytest tests ml` (reverse order) already
+  failed to collect before this work; use the pytest command of « Rules ».

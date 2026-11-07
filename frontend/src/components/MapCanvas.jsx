@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {BIZERTE,demoBadge} from '../lib/constants';
 let leafletPromise;
-function loadLeaflet(){if(window.L)return Promise.resolve(window.L);if(leafletPromise)return leafletPromise;leafletPromise=new Promise((resolve,reject)=>{if(!document.querySelector('link[data-leaflet]')){const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';l.dataset.leaflet='1';document.head.appendChild(l)}const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=()=>resolve(window.L);s.onerror=reject;document.head.appendChild(s)});return leafletPromise;}
+export function loadLeaflet(){if(window.L)return Promise.resolve(window.L);if(leafletPromise)return leafletPromise;leafletPromise=new Promise((resolve,reject)=>{if(!document.querySelector('link[data-leaflet]')){const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';l.dataset.leaflet='1';document.head.appendChild(l)}const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=()=>resolve(window.L);s.onerror=reject;document.head.appendChild(s)});return leafletPromise;}
 const icon=(L,type,label)=>L.divIcon({className:'th-marker-wrap',html:`<div class="th-marker ${type}"><span>${label}</span></div>`,iconSize:[34,34],iconAnchor:[17,17]});
 const pt=p=>p?`${p[0].toFixed(5)},${p[1].toFixed(5)}`:'';
 // focus: a [lat,lon] to centre on (e.g. a searched destination); the view only moves when the route, the

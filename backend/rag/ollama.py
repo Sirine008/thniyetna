@@ -55,3 +55,15 @@ def chat(messages: list[dict], model: str | None = None, options: dict | None = 
     out = _request("/api/chat", {"model": model or config.RAG_LLM_MODEL, "messages": messages, "stream": False,
                                  "options": options or config.CHAT_OPTIONS}, timeout=config.CHAT_TIMEOUT_S)
     return (out.get("message") or {}).get("content", "").strip()
+
+
+def chat_with_tools(messages: list[dict], tools: list[dict], model: str | None = None,
+                    options: dict | None = None) -> dict:
+    """/api/chat with function tools (Ollama tool calling). -> the assistant message:
+    {"role": "assistant", "content": str, "tool_calls": [{"function": {"name": str, "arguments": dict|str}}]}.
+    tool_calls is [] when the model answers directly. Same error classes as chat()."""
+    out = _request("/api/chat", {"model": model or config.RAG_LLM_MODEL, "messages": messages, "tools": tools,
+                                 "stream": False, "options": options or config.CHAT_OPTIONS},
+                   timeout=config.CHAT_TIMEOUT_S)
+    msg = out.get("message") or {}
+    return {"role": "assistant", "content": (msg.get("content") or "").strip(), "tool_calls": msg.get("tool_calls") or []}

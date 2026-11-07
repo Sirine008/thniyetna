@@ -36,6 +36,30 @@ export async function request(path, { method = 'GET', body, headers = {}, auth =
   return response.json();
 }
 
+/** Multipart upload with real progress (fetch has no upload progress): onProgress(0..1). */
+export function uploadWithProgress(path, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('file', file);
+    xhr.open('POST', `${API}${path}`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onerror = () => reject(new Error('Failed to fetch'));
+    xhr.onload = () => {
+      let payload = null;
+      try { payload = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(payload);
+      if (xhr.status === 401) clearSession();
+      const error = new Error(payload?.detail || `Request failed (${xhr.status})`);
+      error.status = xhr.status;
+      return reject(error);
+    };
+    xhr.send(form);
+  });
+}
+
 export async function loginWithCredentials(username, password) {
   const session = await request('/auth/login', { method: 'POST', body: { username, password } });
   setSession(session);
@@ -63,6 +87,8 @@ export const api = {
   },
   driver: () => request('/routing/driver/me', { auth: true }),
   alerts: () => request('/platform/alerts', { auth: true }),
+  driverAlerts: (limit = 200) => request(`/platform/driver-alerts?limit=${limit}`, { auth: true }),
+  ackAlert: id => request(`/platform/alerts/${encodeURIComponent(id)}/ack`, { auth: true, method: 'POST' }),
   nextBest: body => request('/routing/driver/next-best', { auth: true, method: 'POST', body }),
   planRoute: body => request('/routing/route', { method: 'POST', body }),
   geocode: q => request(`/routing/geocode?q=${encodeURIComponent(q)}`),
@@ -72,6 +98,17 @@ export const api = {
   equipmentDashboard: () => request('/platform/dashboard/equipment', { auth: true }),
   complaints: () => request('/platform/complaints', { auth: true }),
   updateComplaint: (id, body) => request(`/platform/complaints/${id}/status`, { auth: true, method: 'PATCH', body }),
+  // inspection vehicle (existing M1 endpoints)
+  startInspection: body => request('/perception/inspections/start', { auth: true, method: 'POST', body }),
+  inspectionHeartbeat: (id, body) => request(`/perception/inspections/${encodeURIComponent(id)}/heartbeat`, { auth: true, method: 'POST', body }),
+  stopInspection: id => request(`/perception/inspections/${encodeURIComponent(id)}/stop`, { auth: true, method: 'POST' }),
+  uploadVideo: (file, onProgress) => uploadWithProgress('/media/video', file, onProgress),
+  createPerceptionJob: body => request('/perception/jobs', { auth: true, method: 'POST', body }),
+  perceptionJob: id => request(`/perception/jobs/${encodeURIComponent(id)}`, { auth: true }),
+  sessionObservations: sessionId => request(`/perception/observations?session_id=${encodeURIComponent(sessionId)}&limit=500`, { auth: true }),
+  // read-only, existing endpoints used by the redesigned detail panels
+  complaintHistory: id => request(`/platform/complaints/${encodeURIComponent(id)}/history`, { auth: true }),
+  observations: (limit = 500) => request(`/perception/observations?limit=${limit}`, { auth: true }),
   roadEvents: () => request('/perception/events?limit=100', { auth: true }),
   validateEvent: id => request(`/perception/events/${id}/validate`, { auth: true, method: 'PATCH' }),
   inspections: () => request('/perception/inspections?limit=100', { auth: true }),
@@ -89,6 +126,13 @@ export const api = {
   assistantStatus: () => request('/assistant/status', { auth: true }),
   ask: question => request('/assistant/ask', { auth: true, method: 'POST', body: { question } }),
   interventionSheet: segmentCode => request(`/assistant/intervention/${encodeURIComponent(segmentCode)}`, { auth: true, method: 'POST' }),
+  // Equipment agent: several model rounds with read-only tools (often 1–3 min on the CPU)
+  agent: question => request('/assistant/agent', { auth: true, method: 'POST', body: { question } }),
+  // Agent proposals: nothing runs until the supervisor confirms (one confirmation = one execution)
+  confirmAgentAction: id => request(`/assistant/agent/actions/${encodeURIComponent(id)}/confirm`, { auth: true, method: 'POST' }),
+  rejectAgentAction: id => request(`/assistant/agent/actions/${encodeURIComponent(id)}/reject`, { auth: true, method: 'POST' }),
+  // Current state of proposals; reading marks those older than 30 min as expired
+  agentActions: ids => request(`/assistant/agent/actions?ids=${encodeURIComponent(ids.join(','))}`, { auth: true }),
   // Staff accounts of the supervisor's ministry
   staffList: () => request('/auth/staff', { auth: true }),
   createStaff: body => request('/auth/staff', { auth: true, method: 'POST', body }),

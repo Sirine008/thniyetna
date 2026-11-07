@@ -1,0 +1,75 @@
+/* THNIYETNA design tokens. Light theme only.
+   Colour carries meaning: petrol = the one accent (primary action, links, selection);
+   green / yellow / orange / red = risk levels, priorities and states only, always with text or an icon. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+
+:root {
+  /* accent (petrol) — #0e4a64 on white = 9.6:1 */
+  --c-primary: #0e4a64;
+  --c-primary-hover: #0a3a4f;
+  --c-primary-soft: #e6eff3;
+  --c-primary-line: #9fbccb;
+  --c-focus: #1d6fa3;
+
+  /* one neutral scale */
+  --c-white: #ffffff;
+  --c-gray-25: #fafbfc;
+  --c-gray-50: #f4f6f8;
+  --c-gray-100: #e9edf1;
+  --c-gray-200: #d8dee5;
+  --c-gray-300: #c2cbd4;
+  --c-gray-400: #8d99a6;
+  --c-gray-500: #5f6b77;   /* smallest allowed text grey: 5.4:1 on white, 5.0:1 on gray-50 */
+  --c-gray-600: #4b5763;
+  --c-gray-700: #36414b;
+  --c-gray-800: #232c35;
+  --c-gray-900: #141a21;
+
+  --c-bg: var(--c-gray-50);
+  --c-surface: var(--c-white);
+  --c-text: var(--c-gray-900);
+  --c-text-muted: var(--c-gray-600);
+  --c-text-subtle: var(--c-gray-500);
+  --c-border: var(--c-gray-200);
+  --c-border-strong: var(--c-gray-300);
+
+  /* meaning colours: text (AA on its tint and on white), tint background, line */
+  --c-green: #1e6b34;   --c-green-bg: #e9f5ed;  --c-green-line: #98c9a6;  --c-green-solid: #2e8540;
+  --c-yellow: #6f5300;  --c-yellow-bg: #fff6d9; --c-yellow-line: #e3c25b; --c-yellow-solid: #d8a800;
+  --c-orange: #8f3b00;  --c-orange-bg: #fff0e5; --c-orange-line: #efa774; --c-orange-solid: #dd6b10;
+  --c-red: #a1161b;     --c-red-bg: #fdecec;    --c-red-line: #e69a9c;    --c-red-solid: #c62828;
+
+  /* typography */
+  --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --fs-xs: 12px;  --lh-xs: 16px;
+  --fs-sm: 13px;  --lh-sm: 18px;
+  --fs-md: 14px;  --lh-md: 20px;
+  --fs-lg: 16px;  --lh-lg: 24px;
+  --fs-xl: 20px;  --lh-xl: 28px;
+  --fs-2xl: 24px; --lh-2xl: 32px;
+  --fw-regular: 400; --fw-medium: 500; --fw-bold: 600;
+
+  /* spacing scale 4/8/12/16/24/32 (+48 for page gutters) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px; --sp-12: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --border: 1px solid var(--c-border);
+  --border-strong: 1px solid var(--c-border-strong);
+  /* shadows: popovers, dropdowns and modals only */
+  --shadow-pop: 0 4px 16px rgba(20, 26, 33, .12), 0 1px 3px rgba(20, 26, 33, .08);
+  --shadow-modal: 0 12px 40px rgba(20, 26, 33, .22);
+
+  --z-map: 1; --z-map-ui: 500; --z-sticky: 800; --z-nav: 900; --z-dropdown: 1000;
+  --z-panel: 1100; --z-modal: 1200; --z-toast: 1300;
+
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --bottomnav-h: 60px;
+  --tap: 44px;
+}

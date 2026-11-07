@@ -1,0 +1,34 @@
+/* Maps: muted basemap so risk colours stand out; markers and lines follow the MapLegend vocabulary. */
+.map-shell { position: relative; overflow: hidden; background: var(--c-gray-100); }
+.leaflet-host { inline-size: 100%; block-size: 100%; min-block-size: 260px; z-index: var(--z-map); font-family: var(--font-sans); }
+.leaflet-container { background: var(--c-gray-100); font: inherit; }
+.leaflet-tile-pane { filter: grayscale(.9) contrast(.88) brightness(1.06); }
+.map-fallback { position: absolute; inset: 0; z-index: 3; background: var(--c-gray-100); display: grid; place-content: center; text-align: center; color: var(--c-text-muted); gap: var(--sp-1); }
+.grid-city { display: none; }
+
+/* Leaflet controls in the design system */
+.leaflet-bar { border: var(--border-strong) !important; border-radius: var(--radius-sm) !important; box-shadow: none !important; }
+.leaflet-bar a { color: var(--c-text) !important; inline-size: 36px !important; block-size: 36px !important; line-height: 36px !important; }
+.leaflet-control-attribution { font-size: 10px; background: rgba(255, 255, 255, .85) !important; }
+.leaflet-popup-content-wrapper { border-radius: var(--radius-md); box-shadow: var(--shadow-pop); border: var(--border); }
+.leaflet-popup-content { margin: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--c-text); }
+.leaflet-popup-content b { display: block; font-size: var(--fs-md); margin-block-end: 2px; }
+.leaflet-tooltip { font-family: var(--font-sans); font-size: var(--fs-xs); border-radius: var(--radius-sm); }
+
+/* Markers: square = M1 detection, round = citizen report, A / B = trip points */
+.th-marker-wrap { background: none !important; border: none !important; }
+.th-marker { animation: none !important; box-shadow: none !important; inline-size: 22px; block-size: 22px; margin: 6px; display: grid; place-items: center; color: var(--c-white); font-weight: var(--fw-bold); font-size: 12px; line-height: 1; border: 2px solid var(--c-white); outline: 1px solid rgba(20, 26, 33, .35); border-radius: 4px; }
+.th-marker.danger { background: var(--c-red-solid); }
+.th-marker.claim { background: var(--c-orange-solid); border-radius: 50%; }
+.th-marker.claim span { font-size: 0; }
+.th-marker.user, .th-marker.destination { inline-size: 28px; block-size: 28px; margin: 3px; border-radius: 50%; font-size: 13px; }
+.th-marker.user { background: var(--c-primary); }
+.th-marker.destination { background: var(--c-gray-900); }
+.leaflet-marker-draggable { cursor: grab; }
+
+/* Route lines (OSRM): no animation, no glow */
+.route-active, .route-danger, .route-safe, .route-line { animation: none !important; filter: none !important; stroke-dasharray: none !important; stroke-width: 6px !important; }
+.route-active { stroke: var(--c-primary) !important; }
+.route-danger { stroke: var(--c-red-solid) !important; stroke-dasharray: 10 8 !important; }
+.route-safe { stroke: var(--c-green-solid) !important; }
+.route-line { stroke: var(--c-primary) !important; }

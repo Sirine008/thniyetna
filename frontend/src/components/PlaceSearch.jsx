@@ -1,15 +1,16 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { Anchor, Bookmark, Building, Bus, GraduationCap, Hospital, House, Landmark, LocateFixed, Mail, MapPin, School, Shield, Signpost, TrainFront, X } from 'lucide-react';
 import { api } from '../lib/api';
 
 const DEBOUNCE_MS = 250;
-// icon per category_key of GET /routing/places (+ the leading suggestions of the « Départ » field)
+// line icon per category_key of GET /routing/places (+ the leading suggestions of the « Départ » field)
 const ICONS = {
-  city: '🏙️', town: '🏙️', village: '🏘️', hamlet: '🏘️', suburb: '📍', neighbourhood: '📍', locality: '📍',
-  street: '🛣️', hospital: '🏥', clinic: '🏥', school: '🏫', university: '🎓', townhall: '🏛️',
-  administration: '🏛️', police: '🚓', post_office: '📮', station: '🚉', bus_station: '🚌', port: '⚓',
-  gps: '⌖', shortcut: '★',
+  city: Building, town: Building, village: House, hamlet: House, suburb: MapPin, neighbourhood: MapPin, locality: MapPin,
+  street: Signpost, hospital: Hospital, clinic: Hospital, school: School, university: GraduationCap, townhall: Landmark,
+  administration: Landmark, police: Shield, post_office: Mail, station: TrainFront, bus_station: Bus, port: Anchor,
+  gps: LocateFixed, shortcut: Bookmark,
 };
-export const placeIcon = key => ICONS[key] || '📍';
+export const PlaceIcon = ({ category }) => { const Icon = ICONS[category] || MapPin; return <Icon aria-hidden="true"/>; };
 export const placeDetail = p => [p.category, p.locality, p.name_ar].filter(Boolean).join(' · ');
 
 /** One trip field (« Départ » or « Arrivée ») with autocomplete on the place index of the Bizerte governorate:
@@ -82,12 +83,12 @@ export default function PlaceSearch({ label, value, onValueChange, onChoose, onC
         aria-activedescendant={showList && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
       />
     </label>
-    {value && <button type="button" className="place-clear" aria-label={`Effacer : ${label}`} onMouseDown={e => e.preventDefault()} onClick={() => { seq.current++; setResults([]); setStatus('idle'); onValueChange(''); onClear?.(); }}>×</button>}
+    {value && <button type="button" className="place-clear" aria-label={`Effacer : ${label}`} onMouseDown={e => e.preventDefault()} onClick={() => { seq.current++; setResults([]); setStatus('idle'); onValueChange(''); onClear?.(); }}><X aria-hidden="true"/></button>}
     {showList && <div className="search-results" id={listId} role="listbox" aria-label={label}>
       {options.map((r, i) => <button type="button" key={r.key || `${r.name}-${r.lat}-${r.lon}`} id={`${listId}-${i}`} role="option"
         aria-selected={i === activeIndex} className={`${i === activeIndex ? 'active' : ''}${r.key ? ' leading' : ''}`}
         onMouseDown={e => e.preventDefault()} onMouseEnter={() => setActiveIndex(i)} onClick={() => choose(r)}>
-        <span className="place-icon" aria-hidden="true">{placeIcon(r.category_key)}</span>
+        <span className="place-icon"><PlaceIcon category={r.category_key}/></span>
         <div><b>{r.name}</b><small>{placeDetail(r)}</small></div>
       </button>)}
       {status === 'loading' && !results.length && <p className="search-state">Recherche…</p>}

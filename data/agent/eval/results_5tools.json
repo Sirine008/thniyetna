@@ -1,0 +1,452 @@
+{
+  "date": "2026-11-07 13:06",
+  "model": "llama3.2:3b",
+  "summary": {
+    "tasks": 8,
+    "first_tool_correct": 0.875,
+    "all_expected_called": 0.875,
+    "all_expected_ok": 0.75,
+    "no_tool": 0.0,
+    "invalid_calls": 3,
+    "invented_codes": 3,
+    "median_latency_s": 40.8
+  },
+  "tasks": [
+    {
+      "id": "a01",
+      "question": "Quels segments dois-je traiter en priorité cette semaine et que faut-il faire ?",
+      "expected_tools": [
+        "list_priority_segments"
+      ],
+      "called_tools": [
+        "list_priority_segments",
+        "get_intervention_sheet",
+        "search_guides"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 1,
+      "ok_calls": [
+        "list_priority_segments",
+        "search_guides"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 1,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "list_priority_segments",
+          "arguments": {
+            "limit": 5,
+            "min_priority": "P1"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 603
+        },
+        {
+          "round": 1,
+          "tool": "get_intervention_sheet",
+          "arguments": {
+            "segment_code": "OSM-12345"
+          },
+          "ok": false,
+          "error": "Segment inconnu : OSM-12345. Utilisez un code renvoyé par list_priority_segments.",
+          "ms": 1
+        },
+        {
+          "round": 1,
+          "tool": "search_guides",
+          "arguments": {
+            "question": "Quels matériaux utiliser pour réparer les nids-de-poule?"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 2241
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 39133,
+          "tool_calls": 3
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 50250,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Pour réparer les nids-de-poule, il est recommandé d'utiliser les techniques suivantes :\n\n*   Réparation d'un nid-de-poule avec un enrobé froid\n*   Réparation d'un nid-de-poule avec un enrobé tiède\n*   Réparation d'un nid-de-poule avec un enrobé chaud\n\nIl est également important de prendre en compte les critères de sélection des techniques de réparation, tels que la formation de nids-de-poule et la sévérité de la dégradation observée.\n\nIl est recommandé de consulter les guides techniques détaillés pour obtenir des informations plus précises et à jour sur les meilleures pratiques pour la réparation des nids-de-poule.",
+      "latency_s": 92.2
+    },
+    {
+      "id": "a02",
+      "question": "Donne-moi les 5 segments les plus prioritaires (P1 et P2 seulement).",
+      "expected_tools": [
+        "list_priority_segments"
+      ],
+      "called_tools": [
+        "list_priority_segments"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 0,
+      "ok_calls": [
+        "list_priority_segments"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 0,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "list_priority_segments",
+          "arguments": {
+            "limit": 5,
+            "min_priority": "P1"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 29
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 6233,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 10576,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Désolé, mais il n'y a pas de segments de priorité P1. Vous pouvez essayer de rechercher des segments de priorité P3 pour voir les segments à planifier.",
+      "latency_s": 16.8
+    },
+    {
+      "id": "a03",
+      "question": "Combien de signalements citoyens sont encore ouverts et combien de détections attendent une validation ?",
+      "expected_tools": [
+        "get_equipment_dashboard"
+      ],
+      "called_tools": [
+        "get_segment_facts"
+      ],
+      "first_tool_correct": false,
+      "all_expected_called": false,
+      "no_tool": false,
+      "invalid_calls": 1,
+      "ok_calls": [],
+      "all_expected_ok": false,
+      "invented_codes": 1,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "get_segment_facts",
+          "arguments": {
+            "segment_code": "OSM-123456"
+          },
+          "ok": false,
+          "error": "Segment inconnu : OSM-123456. Utilisez un code renvoyé par list_priority_segments.",
+          "ms": 2
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 22067,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 13065,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Désolé, mais je ne peux pas répondre à cette question car le segment \"OSM-123456\" n'est pas reconnu. Pour obtenir les informations sur les signalements citoyens, je dois appeler l'outil \"get_citizen_reports\" avec le code segment correct.\n\nPouvez-vous me donner le code segment correct pour obtenir les informations sur les signalements citoyens ?",
+      "latency_s": 35.1
+    },
+    {
+      "id": "a04",
+      "question": "Qu'est-ce qui est enregistré sur le segment OSM-125567491 : détections, signalements, score de risque ?",
+      "expected_tools": [
+        "get_segment_facts"
+      ],
+      "called_tools": [
+        "get_segment_facts"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 0,
+      "ok_calls": [
+        "get_segment_facts"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 0,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "get_segment_facts",
+          "arguments": {
+            "segment_code": "OSM-125567491"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 43
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 22914,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 25436,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Selon les informations disponibles, le segment OSM-125567491 est une route nationale Bizerte - Babouch de classe routière primaire. Le score de risque est classé comme moyen avec un score de 0,28341. Il y a des signalements de dégâts (alligator cracks) observés, mais les informations sont fictives car indiquées par \"demo — données fictives\". Il n'y a pas d'informations disponibles sur les détections ou les signalements précis.",
+      "latency_s": 48.4
+    },
+    {
+      "id": "a05",
+      "question": "Prépare la fiche d'intervention du segment OSM-116022841.",
+      "expected_tools": [
+        "get_intervention_sheet"
+      ],
+      "called_tools": [
+        "get_intervention_sheet"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 0,
+      "ok_calls": [
+        "get_intervention_sheet"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 0,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "get_intervention_sheet",
+          "arguments": {
+            "segment_code": "OSM-116022841"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 13
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 5615,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 40663,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Voici la fiche d'intervention du segment OSM-116022841 :\n\n**Segment :** Route Nationale Bizerte - Babouch (OSM-116022841, route primary)\n\n**Constat :**\n\n* Détection M1 : alligator_crack avec sévérité 0,7264 et confiance 0,3538, observée le 2026-10-23 20:04.\n* État prédit (M2) : dégradé.\n\n**Priorité :**\nLa priorité d'entretien est P3 · Planifier avec un niveau de risque faible (score 0,187252 sur 1).\n\n**Données manquantes :**\nAucun signalement citoyen ouvert à moins de 100 m et aucun passage de véhicule d'inspection enregistré à moins de 30 m du segment.\n\n**Fiche complète :**\nLa fiche complète avec les conseils des guides s'ouvre avec le bouton « Fiche d'intervention complète ».",
+      "latency_s": 46.3
+    },
+    {
+      "id": "a06",
+      "question": "À quelle température minimale peut-on poser un enrobé chaud ?",
+      "expected_tools": [
+        "search_guides"
+      ],
+      "called_tools": [
+        "search_guides"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 0,
+      "ok_calls": [
+        "search_guides"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 0,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "search_guides",
+          "arguments": {
+            "question": "à quelle température minimale peut-on poser un enrobé chaud ?"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 2160
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 7017,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 26017,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "La température minimale pour poser un enrobé chaud est de 0°C pendant une période minimale de 12 heures.",
+      "latency_s": 35.2
+    },
+    {
+      "id": "a07",
+      "question": "Comment signaler un chantier de réparation de nid-de-poule sur une route nationale ?",
+      "expected_tools": [
+        "search_guides"
+      ],
+      "called_tools": [
+        "search_guides"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 0,
+      "ok_calls": [
+        "search_guides"
+      ],
+      "all_expected_ok": true,
+      "invented_codes": 0,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "search_guides",
+          "arguments": {
+            "question": "Comment signaler un chantier de réparation de nid-de-poule sur une route nationale?"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 2195
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 6847,
+          "tool_calls": 1
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 55295,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Pour signaler un chantier de réparation de nid-de-poule sur une route nationale, il est recommandé de suivre les étapes suivantes :\n\n1. Effectuer un sondage de la chaussée pour identifier les nids-de-poule et déterminer la sévérité de la dégradation.\n2. Sélectionner la technique de réparation la plus appropriée en fonction du type et de la sévérité de la dégradation.\n3. Effectuer la réparation en utilisant les matériaux et les techniques recommandées.\n4. Vérifier la qualité du travail réalisé en mesurant les caractéristiques suivantes :\n\t* Nid-de-poule entièrement recouvert par le produit\n\t* Continuité du profil (5mm avec le revêtement)\n\t* Compactage adéquat\n\t* Propreté des lieux\n5. Effectuer un contrôle de durabilité de la réparation pour garantir que le travail réalisé est durable.\n\nIl est important de noter que les techniques de réparation des nids-de-poule doivent être effectuées de manière rapide et efficace pour éviter les dégradations supplémentaires et assurer la sécurité des usagers de la route.",
+      "latency_s": 64.3
+    },
+    {
+      "id": "a08",
+      "question": "Quel est le segment le plus prioritaire et quels défauts y sont enregistrés ?",
+      "expected_tools": [
+        "list_priority_segments",
+        "get_segment_facts"
+      ],
+      "called_tools": [
+        "list_priority_segments",
+        "get_segment_facts"
+      ],
+      "first_tool_correct": true,
+      "all_expected_called": true,
+      "no_tool": false,
+      "invalid_calls": 1,
+      "ok_calls": [
+        "list_priority_segments"
+      ],
+      "all_expected_ok": false,
+      "invented_codes": 1,
+      "rounds": 1,
+      "stop_reason": "answer",
+      "warnings": [],
+      "steps": [
+        {
+          "round": 1,
+          "tool": "list_priority_segments",
+          "arguments": {
+            "limit": 20,
+            "min_priority": "P1"
+          },
+          "ok": true,
+          "error": null,
+          "ms": 49
+        },
+        {
+          "round": 1,
+          "tool": "get_segment_facts",
+          "arguments": {
+            "segment_code": "OSM-12345"
+          },
+          "ok": false,
+          "error": "Segment inconnu : OSM-12345. Utilisez un code renvoyé par list_priority_segments.",
+          "ms": 2
+        }
+      ],
+      "calls": [
+        {
+          "call": 1,
+          "kind": "tools",
+          "llm_ms": 7971,
+          "tool_calls": 2
+        },
+        {
+          "call": 2,
+          "kind": "tools",
+          "llm_ms": 21994,
+          "tool_calls": 0
+        }
+      ],
+      "answer": "Désolé, mais je n'ai pas trouvé de segment avec le code OSM-12345 dans la liste des priorités. Pour obtenir plus d'informations, je vous recommande de relancer la recherche avec un code de segment différent et un minimum de priorité \"P3\" (P1, P2 et P3).\n\nSi vous souhaitez savoir quelles sont les priorités, je peux vous fournir les informations suivantes :\n\nP1 : Priorité élevée\nP2 : Priorité moyenne\nP3 : Priorité basse\n\nJe peux également vous fournir les défauts enregistrés pour les segments de priorité \"P1\" si vous le souhaitez.",
+      "latency_s": 30.0
+    }
+  ]
+}

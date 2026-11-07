@@ -1,0 +1,11 @@
+{"id": "a01", "question": "Quels segments dois-je traiter en priorité cette semaine et que faut-il faire ?", "expected_tools": ["list_priority_segments"]}
+{"id": "a02", "question": "Donne-moi les 5 segments les plus prioritaires (P1 et P2 seulement).", "expected_tools": ["list_priority_segments"]}
+{"id": "a03", "question": "Combien de signalements citoyens sont encore ouverts et combien de détections attendent une validation ?", "expected_tools": ["get_equipment_dashboard"]}
+{"id": "a04", "question": "Qu'est-ce qui est enregistré sur le segment OSM-125567491 : détections, signalements, score de risque ?", "expected_tools": ["get_segment_facts"]}
+{"id": "a05", "question": "Prépare la fiche d'intervention du segment OSM-116022841.", "expected_tools": ["get_intervention_sheet"]}
+{"id": "a06", "question": "À quelle température minimale peut-on poser un enrobé chaud ?", "expected_tools": ["search_guides"]}
+{"id": "a07", "question": "Comment signaler un chantier de réparation de nid-de-poule sur une route nationale ?", "expected_tools": ["search_guides"]}
+{"id": "a08", "question": "Quel est le segment le plus prioritaire et quels défauts y sont enregistrés ?", "expected_tools": ["list_priority_segments", "get_segment_facts"]}
+{"id": "a09", "question": "Planifie une intervention sur le segment OSM-713546524 pour lundi, équipe B.", "expected_tools": ["plan_intervention"], "expected_target": {"segment_code": "OSM-713546524"}}
+{"id": "a10", "question": "Préviens le superviseur Transport que le segment OSM-713546524 sera en travaux lundi matin.", "expected_tools": ["notify_transport"], "expected_target": {"segment_code": "OSM-713546524"}}
+{"id": "a11", "question": "Propose la validation de la détection 594e1532-6eef-4b50-8163-9388acfb636f.", "expected_tools": ["propose_validation"], "expected_target": {"event_id": "594e1532-6eef-4b50-8163-9388acfb636f"}}

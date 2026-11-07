@@ -335,3 +335,13 @@ def test_along_route_distance():
     assert abs(R._along_route_m(line, 37.0001, 9.005) - east / 2) < 1
     assert abs(R._along_route_m(line, 37.005, 9.0102) - (east + 552.7)) < 2
     assert R._along_route_m(line[:1], 37.0, 9.0) == 0.0
+
+
+def test_ack_endpoint_makes_the_alert_inactive_for_the_dedup_rule():
+    """« J'ai pris connaissance » (POST /platform/alerts/{id}/ack) sets status 'delivered'; only 'pending' alerts
+    are active for the one-alert-per-driver-and-line rule, so the next check with the same decision publishes a new
+    alert (test_acknowledged_alert_is_not_refreshed_and_other_lines_are_separate)."""
+    platform = (ROOT / "backend/platform_app/router.py").read_text(encoding="utf-8")
+    ack = platform[platform.index('@router.post("/alerts/{notification_id}/ack")'):]
+    assert "SET status='delivered'" in ack.split("\n@router")[0]
+    assert "status='pending'" in str(R._ACTIVE_ALERTS_SQL)

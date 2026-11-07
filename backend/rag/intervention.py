@@ -52,7 +52,7 @@ def gather_facts(db, segment_code: str) -> dict | None:
           AND (valid_until IS NULL OR valid_until > now())
         ORDER BY created_at DESC LIMIT 1"""), {"s": seg["id"]}).mappings().first()
     events = db.execute(text("""
-        SELECT event_type, severity, confidence, status IN ('validated', 'closed') validated, observed_at, source,
+        SELECT id::text id, event_type, severity, confidence, status IN ('validated', 'closed') validated, observed_at, source,
                coalesce((payload->>'demo')::boolean,false) demo
         FROM road_events WHERE segment_id = CAST(:s AS uuid) AND status <> 'closed'
         ORDER BY observed_at DESC"""), {"s": seg["id"]}).mappings().all()

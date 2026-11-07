@@ -110,6 +110,45 @@ intervention sheet included the defect, but its 3 advice sections came back `unc
 This check exposed an M2 issue, since fixed (`segment_cutoff` in `ml/prediction/jobs/score.py`): an event from the same day was
 ignored until the next day's pass. See `docs/STATUS.md`.
 
+## 7b. Inspection video (2026-10-24)
+
+**Pipeline** (`ml/perception/worker.py` `_process_video`, `video_pipeline.py`): frames sampled at `M1_VIDEO_FPS`
+(default 3; the running stack's `.env` still sets 5) → YOLO on each frame → Ultralytics ByteTrack (`bytetrack.yaml`,
+fed frame by frame) → one defect per track, reported once with its best frame (highest confidence), saved under
+`frames/` with its box as the evidence image → GPS position at that frame → nearest segment and road-event
+deduplication exactly as for photos. GPS comes from a GPX file sent with the video (aligned on its first point, or
+`video_started_at`, plus `M1_GPS_OFFSET_S` / `gps_offset_s`), else the session's heartbeat points. A frame outside
+the track (± `M1_GPS_MAX_GAP_S`, default 10 s) or in a GPS outage is unlocated; **no GPS → observations only, no road
+event**. Videos with no decodable frame fail (e.g. AV1 without a hardware decoder).
+
+**Test run — DÉMO data, real numbers.** Video: *From Santiago to Marea del Portillo, Leg 2 (carretera Granma)*,
+Wikimedia Commons, author « itsme, Pete », **CC BY 3.0** — a forward-facing road video of a degraded national road
+in Cuba. The original (AV1, 1280×720) could not be decoded by the worker; the Commons VP9 480p derivative
+(854×480, 25 fps, 339.4 s) was used. GPS: a **synthetic** GPX (`scripts/make_demo_gpx.py`, 40 km/h along the OSRM
+route Bizerte centre → Ras Jebel, 346 points, 3.83 km). Everything is labelled « DÉMO — données fictives »
+(job options, events, observations, session); the positions do not correspond to the filmed road.
+
+| Measure | Value |
+|---|---|
+| Frames processed (3 fps) | 1,061 |
+| Processing time (CPU, i7-1255U, one-off worker) | 277.3 s (0.82 × real time) |
+| Detections before tracking | 223 — longitudinal crack 201, alligator crack 16, transverse crack 6 |
+| Defects after tracking | 153 — longitudinal crack 131, alligator crack 16, transverse crack 6 |
+| Boxes not taken by the tracker | 0 |
+| Located defects (GPX) | 153 / 153 |
+| Road events created | 50 (several defects within 20 m merged by the existing event deduplication) |
+
+Observations: **no pothole was detected** in this video, although the road surface is visibly degraded; only cracks.
+Tracking merged duplicates only for longitudinal cracks (201 → 131): at 3 fps, alligator and transverse cracks were
+seen on a single sampled frame each, so tracking could not merge them. Best evidence frames: longitudinal crack
+78 % (a clear crack on the asphalt), alligator crack 45 % (a broken surface patch), transverse crack 33 % (a small
+box, plausibly a false positive). No accuracy can be derived from this run (no labels); it validates the pipeline,
+not the model.
+
+**Side effect of the test:** the 50 DÉMO events lie on the start of the Bizerte → Ras Jebel road, so M3 now warns on
+demo line L3 (risk 0.80) and demo line L1's alternative is less safe (80 % → 41 % instead of 73 % → 2 %). They can be
+removed with the demo reset (`scripts/seed_demo.py --reset`, then a new seed) or individually.
+
 ## 8. Limits
 
 - **Not trained on Tunisian roads.** No Tunisian images in RDD2022; Tunisian surfaces, markings, lighting and
@@ -122,6 +161,9 @@ ignored until the next day's pass. See `docs/STATUS.md`.
   events a 0.6 weight).
 - Thresholds conf 0.25 / iou 0.50 were not tuned for this domain.
 - AGPL-3.0 weights (section 1).
+- **Video:** at 3 fps a defect is often visible on one sampled frame only (no merging possible); the position is the
+  vehicle's GPS at that frame, not the defect's (the defect is a few metres ahead of the camera); the evidence label
+  uses the model class code (OpenCV fonts have no accents).
 
 ## 9. Next steps
 

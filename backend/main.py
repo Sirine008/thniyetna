@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from agent.router import router as agent_router
 from auth.router import router as auth_router
 from media.router import router as media_router
 from perception.router import router as perception_router
@@ -39,6 +40,7 @@ app.include_router(platform_router, prefix="/platform", tags=["M4 Platform"])
 app.include_router(realtime_router, prefix="/realtime", tags=["Realtime"])
 app.include_router(media_router, prefix="/media", tags=["Media"])
 app.include_router(assistant_router, prefix="/assistant", tags=["Assistant (RAG)"])
+app.include_router(agent_router, prefix="/assistant", tags=["Assistant (agent)"])
 
 
 @app.get("/health")

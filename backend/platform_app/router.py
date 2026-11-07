@@ -1,7 +1,7 @@
 """M4 backend aggregation for citizen, driver and ministry dashboards."""
 from datetime import datetime, timezone
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
@@ -12,6 +12,10 @@ from shared.db import get_db
 from shared.realtime import publish
 
 router=APIRouter()
+
+# Latest valid score per segment (alias rs); an M2 model score (risk_level set) wins over a contextual-v1 fallback row.
+# Shared with the equipment agent (agent/tools.py list_priority_segments) so both read the same score.
+LATEST_SCORE_LATERAL="""LEFT JOIN LATERAL(SELECT risk_score,risk_category,risk_level,maintenance_priority,predicted_condition,top_factors,model_version,components FROM risk_scores r WHERE r.segment_id=s.id AND (r.valid_until IS NULL OR r.valid_until>now()) ORDER BY (r.risk_level IS NOT NULL) DESC, created_at DESC LIMIT 1) rs ON true"""
 
 @router.post("/complaints",response_model=ComplaintOut)
 def submit_complaint(c:ComplaintIn,db:Session=Depends(get_db),user=Depends(require_role("citizen"))):
@@ -34,21 +38,27 @@ def my_complaints(db:Session=Depends(get_db),user=Depends(require_role("citizen"
 def list_complaints(status:str|None=None,db:Session=Depends(get_db),user=Depends(require_role("equipment_supervisor"))):
     return list(db.execute(text("""SELECT id::text,status,description,ST_Y(geom) latitude,ST_X(geom) longitude,created_at,payload->>'category' category,payload->>'image_url' image_url,coalesce((payload->>'demo')::boolean,false) demo FROM complaints WHERE (CAST(:s AS text) IS NULL OR status=CAST(:s AS text)) ORDER BY created_at DESC"""),{"s":status}).mappings())
 
-@router.patch("/complaints/{complaint_id}/status")
-def update_complaint(complaint_id:str,req:ComplaintStatusUpdate,db:Session=Depends(get_db),user=Depends(require_role("equipment_supervisor"))):
-    if req.status not in {"open","under_review","validated","planned","resolved","rejected"}: raise HTTPException(422,"Unsupported status")
+def apply_complaint_status(db,complaint_id:str,status:str,note:str|None,user:dict)->dict:
+    """Status change + complaint_status_history + citizen notification, WITHOUT commit (the caller commits:
+    the endpoint below for one complaint, the equipment agent once for several — all or nothing)."""
+    if status not in {"open","under_review","validated","planned","resolved","rejected"}: raise HTTPException(422,"Unsupported status")
     old=db.execute(text("SELECT status,actor_ref FROM complaints WHERE id=:id"),{"id":complaint_id}).mappings().first()
     if not old: raise HTTPException(404,"Complaint not found")
-    db.execute(text("UPDATE complaints SET status=:s,payload=payload||jsonb_build_object('last_note',CAST(:n AS text),'updated_by',CAST(:u AS text)) WHERE id=:id"),{"s":req.status,"n":req.note,"u":user["sub"],"id":complaint_id})
-    db.execute(text("INSERT INTO complaint_status_history(complaint_id,old_status,new_status,changed_by,note) VALUES(:id,:o,:n,:u,:note)"),{"id":complaint_id,"o":old["status"],"n":req.status,"u":user["sub"],"note":req.note})
-    publish(db,"complaint.status",{"complaint_id":complaint_id,"old_status":old["status"],"new_status":req.status,"note":req.note},old["actor_ref"]); db.commit(); return {"id":complaint_id,"status":req.status}
+    db.execute(text("UPDATE complaints SET status=:s,payload=payload||jsonb_build_object('last_note',CAST(:n AS text),'updated_by',CAST(:u AS text)) WHERE id=:id"),{"s":status,"n":note,"u":user["sub"],"id":complaint_id})
+    db.execute(text("INSERT INTO complaint_status_history(complaint_id,old_status,new_status,changed_by,note) VALUES(:id,:o,:n,:u,:note)"),{"id":complaint_id,"o":old["status"],"n":status,"u":user["sub"],"note":note})
+    publish(db,"complaint.status",{"complaint_id":complaint_id,"old_status":old["status"],"new_status":status,"note":note},old["actor_ref"])
+    return {"id":complaint_id,"status":status,"old_status":old["status"]}
+
+@router.patch("/complaints/{complaint_id}/status")
+def update_complaint(complaint_id:str,req:ComplaintStatusUpdate,db:Session=Depends(get_db),user=Depends(require_role("equipment_supervisor"))):
+    apply_complaint_status(db,complaint_id,req.status,req.note,user); db.commit(); return {"id":complaint_id,"status":req.status}
 
 @router.get("/map")
 def map_snapshot(db:Session=Depends(get_db)):
     events=list(db.execute(text("SELECT id::text,event_type,severity,confidence,status,source,ST_Y(geom) latitude,ST_X(geom) longitude,observed_at,segment_id::text,coalesce((payload->>'demo')::boolean,false) demo FROM road_events ORDER BY observed_at DESC LIMIT 250")).mappings())
     complaints=list(db.execute(text("SELECT id::text,description,status,ST_Y(geom) latitude,ST_X(geom) longitude,created_at,payload->>'category' category,coalesce((payload->>'demo')::boolean,false) demo FROM complaints ORDER BY created_at DESC LIMIT 250")).mappings())
     # Latest valid score per segment; an M2 model score (risk_level set) wins over a contextual-v1 fallback row.
-    segments=list(db.execute(text("""SELECT s.id::text,s.segment_code,s.name,s.road_class,ST_AsGeoJSON(s.geom)::json geometry,rs.risk_score,rs.risk_category,coalesce(rs.risk_level,rs.risk_category) risk_level,rs.maintenance_priority,rs.predicted_condition,rs.top_factors,rs.model_version,(rs.components->>'exposure_percentile')::float exposure_percentile FROM road_segments s LEFT JOIN LATERAL(SELECT risk_score,risk_category,risk_level,maintenance_priority,predicted_condition,top_factors,model_version,components FROM risk_scores r WHERE r.segment_id=s.id AND (r.valid_until IS NULL OR r.valid_until>now()) ORDER BY (r.risk_level IS NOT NULL) DESC, created_at DESC LIMIT 1) rs ON true ORDER BY s.segment_code""")).mappings())
+    segments=list(db.execute(text("""SELECT s.id::text,s.segment_code,s.name,s.road_class,ST_AsGeoJSON(s.geom)::json geometry,rs.risk_score,rs.risk_category,coalesce(rs.risk_level,rs.risk_category) risk_level,rs.maintenance_priority,rs.predicted_condition,rs.top_factors,rs.model_version,(rs.components->>'exposure_percentile')::float exposure_percentile FROM road_segments s """+LATEST_SCORE_LATERAL+""" ORDER BY s.segment_code""")).mappings())
     routes=list(db.execute(text("SELECT route_code,name,owner_org,active,ST_AsGeoJSON(geom)::json geometry,metadata FROM official_routes WHERE active ORDER BY route_code")).mappings())
     return {"generated_at":datetime.now(timezone.utc),"events":events,"complaints":complaints,"segments":segments,"routes":routes}
 
@@ -63,6 +73,39 @@ def transport_dashboard(db:Session=Depends(get_db),user=Depends(require_role("tr
 @router.get("/alerts")
 def alerts(db:Session=Depends(get_db),user=Depends(get_current_user)):
     return list(db.execute(text("SELECT id::text,topic,payload,status,created_at FROM notification_outbox WHERE recipient_ref IS NULL OR recipient_ref=:u OR recipient_ref=:r ORDER BY created_at DESC LIMIT 100"),{"u":user["sub"],"r":user["role"]}).mappings())
+
+# Driver alerts (M3 reroute / warning) for the transport supervisor: read-only, newest first.
+# Line = the active (else latest) assignment of that driver on that vehicle. acknowledged = the driver pressed
+# « J'ai pris connaissance » (status delivered). The alerts themselves are unchanged (written by /routing/driver/next-best).
+DRIVER_ALERTS_SQL = text("""
+  SELECT n.id::text, n.topic, n.status, n.created_at, n.delivered_at, n.recipient_ref AS driver,
+         n.payload->>'vehicle_id' AS vehicle_code,
+         coalesce((n.payload->>'superseded')::boolean, false) AS superseded, n.payload->>'superseded_note' AS superseded_note,
+         coalesce((n.payload->>'confirmations')::int, 1) AS confirmations, n.payload->>'last_confirmed_at' AS last_confirmed_at,
+         (n.payload->>'risk')::float AS risk, (n.payload->>'alternative_risk')::float AS alternative_risk,
+         n.payload->>'reason' AS reason, coalesce((n.payload->>'hazards_on_initial')::int, 0) AS hazards_on_initial,
+         coalesce((n.payload->>'demo')::boolean, false) AS demo, r.route_code, r.route_name
+  FROM notification_outbox n
+  LEFT JOIN LATERAL (
+    SELECT o.route_code, o.name AS route_name FROM route_assignments ra
+    JOIN official_routes o ON o.id = ra.route_id JOIN vehicles v ON v.id = ra.vehicle_id
+    WHERE ra.driver_username = n.recipient_ref AND v.vehicle_code = n.payload->>'vehicle_id'
+    ORDER BY ra.active DESC, ra.created_at DESC LIMIT 1
+  ) r ON true
+  WHERE n.topic IN ('driver.reroute.alert', 'driver.route.warning')
+  ORDER BY n.created_at DESC
+  LIMIT :limit
+""")
+
+
+@router.get("/driver-alerts")
+def driver_alerts(limit: int = Query(default=200, ge=1, le=500), db: Session = Depends(get_db), user=Depends(require_role("transport_supervisor"))):
+    rows = [dict(r) for r in db.execute(DRIVER_ALERTS_SQL, {"limit": limit}).mappings()]
+    for r in rows:
+        r["kind"] = "reroute" if r["topic"] == "driver.reroute.alert" else "warning"
+        r["acknowledged"] = r["status"] == "delivered"
+        r["active"] = r["status"] == "pending" and not r["superseded"]
+    return rows
 
 @router.post("/alerts/{notification_id}/ack")
 def ack(notification_id:str,db:Session=Depends(get_db),user=Depends(get_current_user)):
